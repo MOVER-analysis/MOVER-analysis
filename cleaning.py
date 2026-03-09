@@ -283,42 +283,39 @@ def main():
     print("--- Loading data --- ")
 
     # --- Load raw data files ---
-    # try:
-    #     for file in input_files:
-    #         file_path = RAW_DATA_PATH + file
-    #         print(f"Reading {file_path}...")
+    try:
+        for file in input_files:
+            file_path = RAW_DATA_PATH + file
+            print(f"Reading {file_path}...")
 
-    #         # read in .csv
-    #         df = pd.read_csv(file_path)
+            # read in .csv
+            df = pd.read_csv(file_path)
 
-    #         # store in a dictionary with the key being the file name
-    #         key = file.replace(".csv", "")
-    #         raw_files[key] = df
-    #         print(f"Successfully loaded {file}")
-    # # Raise an error if file not found
-    # except FileNotFoundError as e:
-    #     print(f"\n[Error] A required file is missing: ")
-    #     print(f"{e}")
-    #     return
-    # # Raise an error if an unexpected error occurred
-    # except Exception as e:
-    #     print(f"\n[Error] An unexpected error occurred while reading files: ")
-    #     print(f"{e}")
-    #     return
-
-    
+            # store in a dictionary with the key being the file name
+            key = file.replace(".csv", "")
+            raw_files[key] = df
+            print(f"Successfully loaded {file}")
+    # Raise an error if file not found
+    except FileNotFoundError as e:
+        print(f"\n[Error] A required file is missing: ")
+        print(f"{e}")
+        return
+    # Raise an error if an unexpected error occurred
+    except Exception as e:
+        print(f"\n[Error] An unexpected error occurred while reading files: ")
+        print(f"{e}")
+        return
 
     # --- Extract dataframes ---
-    # postop_raw = raw_files["patient_post_op_complications"]
-    # info_raw = raw_files["patient_information"]
-    # labs_raw = raw_files["patient_labs"]
+    postop_raw = raw_files["patient_post_op_complications"]
+    info_raw = raw_files["patient_information"]
+    labs_raw = raw_files["patient_labs"]
 
-    info_raw = pd.read_csv("raw/patient_information.csv")
     
     print("\nAll data ready for processing")
 
 
-    # postop = clean_complications(postop_raw)
+    postop = clean_complications(postop_raw)
     info = clean_information(info_raw)
     
 
