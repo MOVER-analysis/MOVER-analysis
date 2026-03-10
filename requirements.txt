@@ -14,4 +14,4 @@ statsmodels
 xgboost==2.1.0
 
 # --- Check Missingness ---
-missingno>=0.5.2
+missingno==0.5.2
