@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 
 # for plotting missingness pattern
-import missingno as msno
+# import missingno as msno
 import matplotlib.pyplot as plt
 import seaborn as sns
 
