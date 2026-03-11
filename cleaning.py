@@ -35,30 +35,33 @@ LAB_TESTS = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
 
 # For preprocessing
 
-def remove_invalid_log_ids(df: pd.DataFrame) -> pd.DataFrame:
+def remove_invalid_log_ids(df: pd.DataFrame, 
+                           id1: str = "LOG_ID",
+                           id2: str = "MRN") -> pd.DataFrame:
     """
-    Removes df rows with LOG_ID values corresponding to multiple MRN values.
+    Removes df rows with id1 values corresponding to multiple id2 values.
+    By default id1 = LOG_ID, id2 = MRN.
     """
-    # Make sure both LOG_ID and MRN exist in df
-    required_cols = ["LOG_ID", "MRN"]
+    # Make sure both id1 and id2 exist in df
+    required_cols = [id1, id2]
     missing_cols = [col for col in required_cols if col not in df.columns]
 
-    # Raise an error if either of LOG_ID or MRN is missing
+    # Raise an error if either of id1 or id2 is missing
     if missing_cols:
         raise KeyError(f"Dataframe is missing the required columns: {missing_cols}.")
 
-    # Group by log id and count MRN
-    log_mrn_count = df.groupby("LOG_ID")["MRN"].nunique()
+    # Group by id1 and count id2
+    id_pair_count = df.groupby(id1)[id2].nunique()
     
-    # Identify log ids with multiple MRN
-    ids_to_remove = log_mrn_count[log_mrn_count > 1].index 
+    # Identify id1 with multiple id2
+    ids_to_remove = id_pair_count[id_pair_count > 1].index 
     
     # Remove invalid log ids
-    df_cleaned = df[~df["LOG_ID"].isin(ids_to_remove)].reset_index(drop = True)
+    df_cleaned = df[~df[id1].isin(ids_to_remove)].reset_index(drop = True)
 
     # Logging output
     removed_count = len(ids_to_remove)
-    print(f"Removed {removed_count} invalid LOG_ID values. {df_cleaned['LOG_ID'].nunique()} unique LOG_IDs remain.")
+    print(f"Removed {removed_count} invalid {id1} values. {df_cleaned[id1].nunique()} unique {id1} remain.")
     
     return df_cleaned
 
@@ -144,7 +147,7 @@ def run_lmm_imputation(df: pd.DataFrame,
         # Predict
         predictions = model.predict(test)
         
-        # 5. Inject back into the original dataframe
+        # Inject back into the original dataframe
         df_filled.loc[test_idx, target] = predictions
         print(f"-> Successfully imputed {len(predictions)} values.")
         
@@ -208,7 +211,7 @@ def find_lab_name_code_pair(df: pd.DataFrame,
 def clean_complications(postop: pd.DataFrame, cols_to_keep: List[str] = POSTOP_COLS) -> pd.DataFrame:
     
     """
-    Cleans postop (patient_postoperative_copmlications dataframe) by:
+    Cleans postop (patient_postoperative_complications dataframe) by:
     - Selecting and retaining only cols_to_keep
     - Removing invalid LOG_ID values (those correspond to multiple MRNs)
 
