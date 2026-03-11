@@ -35,7 +35,7 @@ LAB_TESTS = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
 
 # For preprocessing
 
-def remove_invalid_log_ids(df: pd.DataFrame, 
+def remove_invalid_ids(df: pd.DataFrame, 
                            id1: str = "LOG_ID",
                            id2: str = "MRN") -> pd.DataFrame:
     """
@@ -83,7 +83,7 @@ def pre_process(df: pd.DataFrame, cols_to_keep: List[str]) -> pd.DataFrame:
     df = df[cols_to_keep].copy()
 
     # Drop invalid LOG_IDs
-    df_cleaned = remove_invalid_log_ids(df)
+    df_cleaned = remove_invalid_ids(df)
     
     return df_cleaned
 
