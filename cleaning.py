@@ -16,7 +16,7 @@ import seaborn as sns
 import statsmodels.formula.api as smf
 
 # for function definition and calls
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Dict, Any, Optional
 
 # === Global Constants === 
 # Path to data folder
@@ -165,46 +165,67 @@ def run_lmm_imputation(df: pd.DataFrame,
 # For filtering lab tests
 
 def find_lab_name_code_pair(df: pd.DataFrame,
-                            most_common_tests: List[str],
-                            pre_defined_tests: List[str] = LAB_TESTS) -> pd.DataFrame:
+                            test_list: List[str],
+                            special_configs: Optional[Dict[str, Dict[str, Any]]] = None,
+                            name_col: str = "Lab Name",
+                            code_col: str = "Lab Code") -> pd.DataFrame:
     """
-    Find the most common lab name-code pair for each test in most_common_tests and pre_defined_tests
+    Finds name-code pairs for each test in test_list with a default search strategy 
+    (case-insensitive, include all relevant results).
+    
+    If provided, special_configs overrides the default search strategy.
 
-    LAB_TESTS = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
+    Supported keys within each config:
+    1. pat: Specific string/regex to search for (defaults to the test name).
+    2. case: Boolean for case sensitivity (defaults to False).
+    3. regex: Boolean to enable regex special characters (defaults to False).
+    4. exclude: String to ignore if found in the Lab Name (defaults to None).
+    
+    Example special_configs:
+    {
+        "pH": {"pat": r"\bpH\b", "case": True},
+        "Lactate": {"pat": "Lactate", "case": False, "exclude": "D-lactate"}
+    }
+
+    Returns a dataframe of selected pairs.
     """
-    target_tests = pre_defined_tests + most_common_tests
+
+    special_configs = special_configs or {}
     selected_pairs = []
 
-    for test in target_tests:
-        # Case-sensitive filtering for pH
-        if test == "pH":
-            test_matches = df[df["Lab Name"].str.contains(r'\bpH\b', case = True, na = False)]
-        
-        # Filtering for Lactate (exclude D-lactate)
-        elif test == "Lactate":
-            test_matches = df[
-                df["Lab Name"].str.contains("Lactate", case = False, na = False) & 
-                ~df["Lab Name"].str.contains("D-lactate", case = False, na = False)
-            ]
-        
-        # Case-insensitive filtering for all other tests
-        else:
-            test_matches = df[df["Lab Name"].str.contains(test, case = False, na = False)]
-    
-        if not test_matches.empty:
-            # Choose the most common Lab Name value
-            most_common_name = test_matches["Lab Name"].value_counts().idxmax()
-            
-            # Find the most common Lab Code associated with that specific Lab Name
-            name_subset = test_matches[test_matches["Lab Name"] == most_common_name]
-            most_common_code = name_subset["Lab Code"].value_counts().idxmax()
-            
-            selected_pairs.append({"Lab Name": most_common_name, "Lab Code": most_common_code})
+    for test in test_list:
+        # Get custom settings or use defaults
+        cfg = special_configs.get(test, {})
+        search_pat = cfg.get("pat", test)
+        is_case = cfg.get("case", False)
+        is_regex = cfg.get("regex", False)
+        exclusion = cfg.get("exclude", None)
 
-    # convert to a df
-    tests_df = pd.DataFrame(selected_pairs)
+        # Filter df
+        mask = df[name_col].str.contains(search_pat, 
+                                         case = is_case, 
+                                         regex = is_regex, 
+                                         na = False)
+        if exclusion:
+            mask &= ~df[name_col].str.contains(exclusion, case = False, na = False)
+
+        test_matches = df[mask]
+
+        if not test_matches.empty:
+            # Find the most common lab name for the test
+            most_common_name = test_matches[name_col].value_counts().idxmax()
+
+            # Find the most common lab code
+            name_subset = test_matches[test_matches[name_col] == most_common_name]
+            most_common_code = name_subset[code_col].value_counts().idxmax()
+
+            selected_pairs.append({
+                name_col: most_common_name,
+                code_col: most_common_code
+            })
     
-    return tests_df
+
+    return pd.DataFrame(selected_pairs)
 
 # === Functions for Data Cleaning ===
 
@@ -310,6 +331,7 @@ def clean_information(info: pd.DataFrame,
 
 def clean_labs(labs: pd.DataFrame, 
                cols_to_keep: List[str] = LABS_COLS,
+               predefined_tests: List[str] = LAB_TESTS,
                date_format: str = "%Y-%m-%d %H:%M:%S") -> pd.DataFrame:
     """
     Cleans info (patient_information dataframe) by:
@@ -345,13 +367,20 @@ def clean_labs(labs: pd.DataFrame,
 
     # --- FILTER LAB TESTS ---
     # Find the 5 most common lab tests excluding those in LAB_TESTS
-    mask = labs_cleaned["Lab Name"].str.contains('|'.join(LAB_TESTS), case = False, na = False)
+    mask = labs_cleaned["Lab Name"].str.contains('|'.join(predefined_tests), case = False, na = False)
     other_tests_df = labs_cleaned[~mask]
     top5_tests = other_tests_df["Lab Name"].value_counts().head(5).index.tolist()
     print(f"Most common tests {top5_tests}")
 
     # Choose most common lab name-code pair for each test
-    tests_df = find_lab_name_code_pair(df = labs_cleaned, most_common_tests = top5_tests)
+    tests_to_filter = predefined_tests + top5_tests
+    
+    special_search = {
+        "pH": {"pat": r"\bpH\b", "case": True, "regex": True},
+        "Lactate": {"exclude": "D-Lactate"}
+    }
+    
+    tests_df = find_lab_name_code_pair(df = labs_cleaned, test_list = tests_to_filter, special_configs = special_search)
     print(f"Selected pairs: {tests_df}")
 
     # Filter to include only rows matching the selected name-code pair
@@ -428,7 +457,7 @@ def main():
     print(" --- Filtering lab tests taken before anesthesia --- ")
     final_df = merged_df[merged_df['Collection Datetime'] <= merged_df['AN_START_DATETIME']].reset_index(drop = True)
 
-    #group by LOG_ID, MRN and Lab Name
+    # group by LOG_ID, MRN and Lab Name
     # find indices corresponding to the latest Collection Datetime for each group
     latest_indices = final_df.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
     final_df_filtered = final_df.loc[latest_indices].reset_index(drop = True)
