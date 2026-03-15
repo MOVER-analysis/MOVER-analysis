@@ -149,7 +149,7 @@ def run_lmm_imputation(df: pd.DataFrame,
         
         # Inject back into the original dataframe
         df_filled.loc[test_idx, target] = predictions
-        print(f"-> Successfully imputed {len(predictions)} values.")
+        print(f"Successfully imputed {len(predictions)} values.")
         
     except (ValueError, KeyError) as e:
         print(f"Imputation skipped for {target}: {e}")
@@ -158,7 +158,7 @@ def run_lmm_imputation(df: pd.DataFrame,
 
     # Imputation summary
     remaining_nulls = df_filled[target].isna().sum()
-    print(f"-> Final check: {remaining_nulls} null values remain in '{target}'.")
+    print(f"Final check: {remaining_nulls} null values remain in '{target}'.")
 
     return df_filled
 
@@ -314,7 +314,7 @@ def clean_information(info: pd.DataFrame,
                                     predictors = ["SEX", "WEIGHT"],
                                     group_col = "MRN")
 
-    info_filled = run_lmm_imputation(df = info_sorted,
+    info_filled = run_lmm_imputation(df = info_filled,
                                     target = "WEIGHT",
                                     predictors = ["SEX", "HEIGHT"],
                                     group_col = "MRN")
@@ -323,7 +323,13 @@ def clean_information(info: pd.DataFrame,
     print("Drop remaining NAs in HEIGHT and WEIGHT")
     info_filled = info_filled.dropna(subset = ["HEIGHT", "WEIGHT"], how = "all").reset_index(drop = True)
 
-    print(f"Cleaning complete. Final Row Count: {len(info_filled)}")
+    # check if all NAs are filled/dropped
+    height_na = info_filled['HEIGHT'].isna().sum()
+    wegith_na = info_filled['WEIGHT'].isna().sum()
+    print(f"Remaining NAs in HEIGHT: {height_na}")
+    print(f"Remaining NAs in WEIGHT: {wegith_na}")
+    
+    print(f"Cleaning complete. Final Row Count: {len(info_filled)}") 
     # Note: should be 57026
 
     return info_filled
