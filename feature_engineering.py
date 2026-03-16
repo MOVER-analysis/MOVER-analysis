@@ -7,8 +7,8 @@ DATA_PATH = "data/"
 
 ## config for creating binary indicator columns
 BINARY_COL_CONFIG = {
-    "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia"),
-    "SEX": ("male", "sex")
+    "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia", "in"),
+    "SEX": ("female", "sex", "exact")
 }
 
 ## config for calculating BMI from height and weight
@@ -21,20 +21,44 @@ BMI_CONFIG = {
 # === functions ===
 def create_binary_cols(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """
-    Creates binary columns based on specified target values and new column names.
+    Creates binary columns based on specified target values, new column names, and matching rules.
     Returns df with the new binary columns added.
 
     config format:
-        {source column: (target value to code as 1, new column name)}
+        {source_column: (target_value, new_column_name, match_type)}
+
+    match_type:
+        - "in": code as 1 if target value is contained in the source value
+        - "exact": code as 1 if source value exactly matches the target value
     """
-    for source_col, (target_value, new_col) in config.items():
-        df[new_col] = (
-            df[source_col]
-            .astype(str)
-            .str.lower()
-            .str.contains(str(target_value).lower(), na=False)
-            .astype(int)
-        )
+    for source_col, (target_value, new_col, match_type) in config.items():
+        target_value = str(target_value).lower()
+
+        if match_type == "in":
+            df[new_col] = (
+                df[source_col]
+                .astype(str)
+                .str.lower()
+                .str.contains(target_value, na=False)
+                .astype(int)
+            )
+
+        elif match_type == "exact":
+            source_series = df[source_col]
+
+            df[new_col] = source_series.apply(
+                lambda x: (
+                    pd.NA if pd.isna(x)
+                    else int(str(x).lower() == target_value)
+                )
+            )
+
+        else:
+            raise ValueError(
+                f"Invalid match_type '{match_type}' for column '{source_col}'. "
+                "Use 'in' or 'exact'."
+            )
+
     return df
 
 def calculate_bmi(df: pd.DataFrame, config: dict) -> pd.DataFrame:
