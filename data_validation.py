@@ -20,6 +20,9 @@ EXPECTED_TYPE_COLS = {"string": ["LOG_ID", "MRN"],
                       "numeric": LAB_COLS + [col for col in DEMO_COLS if col != "sex"], 
                       "binary": ["hypoxemia", "sex"]}
 
+## threshold for dropping columns based on missingness proportion
+DROP_THRESHOLD = 0.8
+
 def check_duplicate_keys(df: pd.DataFrame, key_cols: list[str]) -> None:
     """
     Checks for duplicated rows based on specified key columns.
@@ -205,7 +208,7 @@ def main():
     check_implausible_values(df, EXPECTED_TYPE_COLS)
 
     ## miss value checks
-    df_validated = check_missingness(df, drop_threshold = 0.8)
+    df_validated = check_missingness(df, drop_threshold = DROP_THRESHOLD)
 
     # --- export to csv ---
     df_validated.to_csv(output_data_path, index=False)
