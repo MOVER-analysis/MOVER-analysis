@@ -3,6 +3,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import yaml
+import os
 
 # Functions
 def load_yaml(file_path = "params.yaml"):
@@ -88,7 +89,11 @@ def create_plots(df, features_dict, outcome_list, output_folder):
             # Setting up the y-axis label
             name = info["name"]
             units = info["units"]
-            ylabel = name + "( " + units + ")"
+
+            if info["units"] != "":
+                ylabel = name + " (" + units + ")"
+            elif info["units"] == "":
+                ylabel = name
 
             plt.ylabel(ylabel)
         elif info["type"] == "categorical":
@@ -130,6 +135,20 @@ def create_plots(df, features_dict, outcome_list, output_folder):
         except FileNotFoundError:
             raise FileNotFoundError(f"Folder not found: {output_folder}")
 
+        plt.clf()
+
+def create_output_folder(output_folder):
+    """
+    Creates output folder for plots.
+    """
+
+    try:
+        # Create the folder and do not give an error if the folder already exists
+        os.makedirs(output_folder, exist_ok = True)
+        print(f"Folder created: {output_folder}")
+    except OSError as e:
+        print(f"Error trying to create folder {output_folder}: {e}")
+
 def main():
 
     # Loading the configuration file and the training set
@@ -138,6 +157,9 @@ def main():
 
     # Storing the output folder for the plots
     output_folder = config["output"]["plots_folder"]
+
+    # Creating the output folder for the plots
+    create_output_folder(output_folder)
 
     # Setting up features_dict and outcome_list for plotting
     features_dict = {
@@ -148,7 +170,7 @@ def main():
             "lowercase": True
         },
         "bmi": {
-            "type": "continuous"
+            "type": "continuous",
             "name": "Body mass index",
             "units": "kg/m^2",
             "lowercase": True
@@ -190,7 +212,7 @@ def main():
             "lowercase": True
         },
         "potassium": {
-            "type": "continuous":
+            "type": "continuous",
             "name": "Potassium",
             "units": "mmol/L",
             "lowercase": True
