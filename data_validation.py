@@ -21,6 +21,9 @@ EXPECTED_TYPE_COLS = {"string": ["LOG_ID", "MRN"],
                       "binary": ["hypoxemia", "sex"]}
 
 def check_duplicate_keys(df: pd.DataFrame, key_cols: list[str]) -> None:
+    """
+    Checks for duplicated rows based on specified key columns.
+    """
     dup_n = df.duplicated(subset=key_cols).sum()
 
     if dup_n == 0:
@@ -29,6 +32,9 @@ def check_duplicate_keys(df: pd.DataFrame, key_cols: list[str]) -> None:
         print(f"Found {dup_n} duplicated keys.")
 
 def check_required_columns(df: pd.DataFrame, required_cols: list[str]) -> None:
+    """
+    Checks whether all required columns are present in the data frame.
+    """
     missing_cols = [col for col in required_cols if col not in df.columns]
 
     if len(missing_cols) == 0:
@@ -130,31 +136,53 @@ def check_implausible_values(df: pd.DataFrame, expected_type_cols: dict, val_dir
         binary_dist.to_csv(output_path)
         print(f"\nSaved binary variable distribution to {output_path}")
 
-def check_missingness(df: pd.DataFrame, val_dir: str = "validation/") -> None:
+def check_missingness(df: pd.DataFrame, val_dir: str = "validation/", drop_threshold: float = 0.5) -> pd.DataFrame:
     """
-    Checks missingness for all columns and saves the summary table to
-    validation/table/missingness_summary.csv.
+    Checks missingness for all columns and saves the summary table to validation/table/missingness_summary.csv.
+    Columns with missingness greater than drop_threshold are marked as '(dropped)' in the summary index.
+    Returns the input data frame after dropping columns whose missingness proportion exceeds drop_threshold.
     """
     table_dir = val_dir + "table/"
     os.makedirs(table_dir, exist_ok=True)
 
+    missing_prop = df.isna().mean()
+    cols_to_drop = missing_prop[missing_prop > drop_threshold].index.tolist()
+
     missing_summary = pd.DataFrame({
         "n_missing": df.isna().sum(),
-        "pct_missing": df.isna().mean() * 100
+        "pct_missing": missing_prop * 100
     })
+
+    missing_summary.index = [
+        f"{col} (dropped)" if col in cols_to_drop else col
+        for col in missing_summary.index
+    ]
 
     output_path = table_dir + "missingness_summary.csv"
     missing_summary.to_csv(output_path)
-
     print(f"Saved missingness summary to {output_path}")
+    
+    df_clean = df.drop(columns=cols_to_drop)
+    
+    if cols_to_drop:
+        print(f"\nDropped columns with missingness greater than {drop_threshold:.0%}:")
+        for col in cols_to_drop:
+            print(f"- {col}: {missing_prop[col] * 100:.1f}% missing")
+        else:
+            print(f"\nNo columns had missingness greater than {drop_threshold:.0%}.")
+
+    return df_clean
 
 # === main ===
 def main():
     # --- define file paths ---
     input_file = "restructured_data.csv"
+    output_data_file = "validated_data.csv"
 
     input_path = DATA_PATH + input_file
-    output_path = "validation/"
+    output_data_path = DATA_PATH + output_data_file
+    output_validation_path = "validation/"
+    
 
     # --- read data ---
     try:
@@ -177,7 +205,11 @@ def main():
     check_implausible_values(df, EXPECTED_TYPE_COLS)
 
     ## miss value checks
-    check_missingness(df)
+    df_validated = check_missingness(df, drop_threshold = 0.8)
+
+    # --- export to csv ---
+    df_validated.to_csv(output_data_path, index=False)
+    print(f"Validated data saved to {output_data_file}.")
 
 if __name__ == "__main__":
     main()
