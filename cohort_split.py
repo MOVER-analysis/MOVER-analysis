@@ -51,13 +51,13 @@ def case_control_sample(df: pd.DataFrame,
 # === main ===
 def main():
     # --- define file paths ---
-    input_file = "restructured_data.csv"
+    input_file = "validated_data.csv"
     output_train_file = "hypoxemia_train.csv"
     output_test_file = "hypoxemia_test.csv"
 
     input_path = DATA_PATH + input_file
     train_path = DATA_PATH + output_train_file
-    test_path = DATA_PATH + output_train_file
+    test_path = DATA_PATH + output_test_file
     
     # --- read data ---
     try:
