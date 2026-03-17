@@ -41,6 +41,8 @@ def create_plots(df, features_dict, outcome_list, output_folder):
                           "lowercase": True or False (whether converting the name
                           to lowercase is appropriate),
                           "bar_colours": ["colour_1", "colour_2"] (only if categorical),
+                          "xangle": ... (number of degrees to rotate x-axis labels by;
+                          only if categorical),
                           "class_names": {0: "...", 1: "..."} (only if categorical)}
     outcome_list has the following format:
     ["variable_name", "class_0_name", "class_1_name"]
@@ -98,8 +100,8 @@ def create_plots(df, features_dict, outcome_list, output_folder):
             plt.ylabel(ylabel)
         elif info["type"] == "categorical":
             # Creating a dataframe with the proportion of each category with
-            # columns for outcome_variable_name, class 0, and class 1 (wide format)
-            prop_df = (df.group_by(outcome_variable_name)[var]
+            # columns for outcome_variable_name, class 0, and class 1
+            prop_df = (df.groupby(outcome_variable_name)[var]
                       .value_counts(normalize = True)
                       .unstack())
 
@@ -110,19 +112,20 @@ def create_plots(df, features_dict, outcome_list, output_folder):
             plt.title(title)
             plt.xlabel(xlabel)
 
-            # Setting up the y-axis label
-            name = info["name"]
-            ylabel = f"Proportion of {name}"
-
+            # Setting up the y-axis label depending on lowercase appropriateness
+            ylabel = f"Proportion of {title_var}"
             plt.ylabel(ylabel)
 
             # Setting up the legend labels
-            class_0_label = info[class_names[0]]
-            class_1_label = info[class_names[1]]
+            class_0_label = info["class_names"][0]
+            class_1_label = info["class_names"][1]
             legend_title = info["name"]
 
             # Adding a legend to the plot
             plt.legend([class_0_label, class_1_label], title = legend_title)
+
+            # Rotating labels on the x-axis
+            plt.xticks(rotation = info["xangle"])
 
         # Ensuring plot labels and elements do not overlap
         plt.tight_layout()
@@ -175,12 +178,6 @@ def main():
             "units": "kg/m^2",
             "lowercase": True
         },
-        "crp": {
-            "type": "continuous",
-            "name": "C-reactive protein",
-            "units": "MG/DL",
-            "lowercase": False
-        },
         "co2": {
             "type": "continuous",
             "name": "Carbon dioxide",
@@ -223,24 +220,13 @@ def main():
             "units": "mmol/L",
             "lowercase": True
         },
-        "pH": {
-            "type": "continuous",
-            "name": "pH",
-            "units": "",
-            "lowercase": False
-        },
-        "lactate": {
-            "type": "continuous",
-            "name": "Lactate",
-            "units": "mmol/L",
-            "lowercase": True
-        },
         "sex": {
             "type": "categorical",
             "name": "Sex",
             "units": "",
             "lowercase": True,
             "bar_colours": ["blue", "red"],
+            "xangle": 45,
             "class_names": {0: "Male", 1: "Female"}
         }
     }
