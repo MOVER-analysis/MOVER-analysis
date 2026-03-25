@@ -1,42 +1,8 @@
 # Libraries
 import pandas as pd
 import statsmodels.formula.api as smf
-import yaml
-import os
 
 # Functions
-def load_yaml(file_path = "params.yaml"):
-    """
-    Loads the .yaml configuration file.
-    """
-
-    try:
-        with open(file_path, "r") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-def load_data(training_set_file_path, test_set_file_path):
-    """
-    Loads the training and test sets.
-    """
-
-    # Loading the training set
-    try:
-        with open(training_set_file_path, "r") as f:
-            training_set = pd.read_csv(f)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Training set not found: {training_set_file_path}")
-
-    # Loading the test set
-    try:
-        with open(test_set_file_path, "r") as f:
-            test_set = pd.read_csv(f)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Test set not found: {test_set_file_path}")
-
-    return training_set, test_set
-
 def fit_model(training_set, outcome_var, predictor_var_list):
     """
     Fits a logistic regression model on a training set.
@@ -63,18 +29,6 @@ def fit_model(training_set, outcome_var, predictor_var_list):
     except Exception as e:
         print(f"Error fitting model: {e}")
         return None
-
-def create_output_folder(output_folder):
-    """
-    Creates output folder for model results.
-    """
-
-    try:
-        # Create the folder and do not give an error if the folder already exists
-        os.makedirs(output_folder, exist_ok = True)
-        print(f"Folder created: {output_folder}")
-    except OSError as e:
-        print(f"Error trying to create folder {output_folder}: {e}")
 
 def save_full_model(model, output_folder, output_file_name):
     """
@@ -150,69 +104,3 @@ def evaluate_model(model, df, outcome_var, output_folder, output_file_name):
             )
     except FileNotFoundError:
         raise FileNotFoundError(f"Folder not found: {output_folder}")
-
-def main():
-
-    # Loading the configuration file, training set, and test set
-    config = load_yaml()
-    training_set_path = config["data"]["training_set_path"]
-    test_set_path = config["data"]["test_set_path"]
-    training_set, test_set = load_data(training_set_path, test_set_path)
-
-    # Storing and creating the output folder for the model-related results
-    output_folder = config["output"]["model_folder"]
-    create_output_folder(output_folder)
-
-    # Printing a message about starting full model analysis
-    print("––––– Full Model –––––")
-
-    # Fitting the full model on the training set
-    outcome_var = "hypoxemia"
-    predictor_var_list = ["age", "sex", "bmi", "co2", "glucose", "hematocrit",
-                          "hemoglobin", "leukocytes", "potassium", "sodium"]
-
-    full_model = fit_model(training_set, outcome_var, predictor_var_list)
-
-    # Storing the significant predictors at the 0.05 level of significance
-    alpha = 0.05
-    significant_predictors = get_significant_predictors(full_model, alpha)
-
-    # Printing a message to show the significant predictors if any exist
-    if len(significant_predictors) > 0:
-        print(
-            f"The significant predictors from the full model "
-            f"are: {significant_predictors}")
-    else:
-        print("No significant predictors found.")
-
-    # Saving the results of the full model
-    output_file_name = "full_model_results"
-    
-    save_full_model(full_model, output_folder, output_file_name)
-
-    # Evaluating the full model on the test set and saving the test set
-    # misclassification error rate for comparison
-    output_file_name = "full_model_misclassification_error_rate"
-
-    evaluate_model(full_model, test_set, outcome_var,
-                   output_folder, output_file_name)
-
-    # Printing a message about starting reduced model analysis
-    print("––––– Reduced Model –––––")
-
-    # Fitting the reduced model on the training set using only the
-    # identified significant predictors
-    reduced_model = fit_model(training_set, outcome_var, significant_predictors)
-
-    # Evaluating the reduced model on the test set and saving the test set
-    # misclassification error rate
-    output_file_name = "reduced_model_misclassification_error_rate"
-
-    evaluate_model(reduced_model, test_set, outcome_var,
-                   output_folder, output_file_name)
-
-    # Printing a message
-    print("Analysis complete.")
-
-if __name__ == "__main__":
-    main()
