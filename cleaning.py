@@ -175,8 +175,6 @@ def handle_missingness(df: pd.DataFrame,
     # Drop missing values in specified cols
     if "drop" in config:
         for col, custom_val in config["drop"].items():
-            if col not in df_cleaned.columns:
-                raise KeyError(f"'{col}' not found in dataframe.")
             # replace custom_val (if specified) with np.NaN
             if custom_val:
                 df_cleaned[col] = df_cleaned[col].replace(custom_val, np.nan)
@@ -193,13 +191,10 @@ def handle_missingness(df: pd.DataFrame,
         df_cleaned = df_cleaned.sort_values(by=sort_cols)
 
         for col in config["ffill"]:
-            if col in df_cleaned.columns:
-                if group:
-                    df_cleaned[col] = df_cleaned.groupby(group)[col].ffill()
-                else:
-                    df_cleaned[col] = df_cleaned[col].ffill()
+            if group:
+                df_cleaned[col] = df_cleaned.groupby(group)[col].ffill()
             else:
-                raise KeyError(f"Skipping forward fill for {col}: variable not found in dataset.")
+                df_cleaned[col] = df_cleaned[col].ffill()
 
     # LMM
     if "lmm_impute" in config:
@@ -208,29 +203,48 @@ def handle_missingness(df: pd.DataFrame,
             raise ValueError("Skipping lmm imputation: group column not provided.")
 
         for target, predictors in config["lmm_impute"].items():
-            # Check target and predictors existence
-            if target not in df_cleaned.columns:
-                raise KeyError(f"Target column '{target}' not found.")
-            
-            missing_preds = [p for p in predictors if p not in df_cleaned.columns]
-            if missing_preds:
-                raise KeyError(f"Predictors {missing_preds} not found for target '{target}'.")
-            
-            if df_cleaned[target].isna().any():
-                df_cleaned = run_lmm_imputation(
-                    df=df_cleaned,
-                    target=target,
-                    predictors=predictors,
-                    group_col=group
-                )
-            else:
-                print(f"Skipping lmm imputation for {target}: no missing values found.")
+            df_cleaned = run_lmm_imputation(
+                df=df_cleaned,
+                target=target,
+                predictors=predictors,
+                group_col=group
+            )
             
         lmm_targets = list(config["lmm_impute"].keys())
         print(f"Removing rows still missing all targets: {lmm_targets}")
         df_cleaned = df_cleaned.dropna(subset=lmm_targets, how="all")
                 
     return df_cleaned.reset_index(drop=True)
+
+def translate_missing_config(missing_config: Dict[str, Any],
+                             col_mapping: Dict[str, str]) -> Dict[str, Any]:
+
+    """
+    Translates logical keys in missing_config to actual column names 
+    in the dataset using col_mapping.
+    """
+    translated = {}
+
+    # Handle "drop": dictionary mapping {column: [values_to_drop]}
+    if "drop" in missing_config:
+        translated["drop"] = {
+            col_mapping.get(key, key): value for key, value in missing_config["drop"].items()
+        }
+
+    # Handle "ffill": list of column keys
+    if "ffill" in missing_config:
+        translated["ffill"] = [
+            col_mapping.get(key, key) for key in missing_config["ffill"]
+        ]
+
+    # Handle "lmm_impute": dictionary {target: [predictors]}
+    if "lmm_impute" in missing_config:
+        translated["lmm_impute"] = {
+            col_mapping.get(target, target): [col_mapping.get(pred, pred) for pred in preds]
+            for target, preds in missing_config["lmm_impute"].items()
+        }
+
+    return translated
 
 
 # === Data Cleaning ===
@@ -275,8 +289,9 @@ def clean_complications(postop: pd.DataFrame,
     if missing_config:
         print("Handling missing values in patient postoperative complications data...")
         
+        translated_cfg = translate_missing_config(missing_config, col_mapping)
         postop_final = handle_missingness(df=postop_cleaned,
-                                          config=missing_config,
+                                          config=translated_cfg,
                                           group=patient_id,
                                           timestamp=timestamp)
 
@@ -325,11 +340,12 @@ def clean_information(info: pd.DataFrame,
 
     Handles missing values as specified in missing_config.
 
-    missing_config example: {"drop": {"sex": ["UNKNOWN"],
-                                      "timestamp": None # Just drop actual NaNs},
-                            "ffill": ["height", "weight"],
-                            "lmm_impute": {"height": ["sex", "weight"],
-                                           "weight": ["sex", "height"]}
+    missing_config example: {
+                                "drop": {"sex": ["Unknown"],
+                                         "timestamp": None},
+                                "ffill": ["height", "weight"],
+                                "lmm_impute": {"height": ["sex", "weight"],
+                                               "weight": ["sex", "height"]}
                             }
     
     """
@@ -370,9 +386,12 @@ def clean_information(info: pd.DataFrame,
     # handle missingness
     if missing_config:
         print("Handling missing values in patient information data...")
+
+        # translating missing_config
+        translated_cfg = translate_missing_config(missing_config, col_mapping)
         
         info_final = handle_missingness(df=info_cleaned, 
-                                        config=missing_config,
+                                        config=translated_cfg,
                                         group=patient_id, 
                                         timestamp=timestamp)
 
@@ -447,8 +466,9 @@ def clean_labs(labs: pd.DataFrame,
     if missing_config:
         print("Handling missing values in patient labs data...")
         
+        translated_cfg = translate_missing_config(missing_config, col_mapping)
         labs_final = handle_missingness(df=labs_cleaned, 
-                                        config=missing_config,
+                                        config=translated_cfg,
                                         group=patient_id, 
                                         timestamp=timestamp)
 
@@ -684,18 +704,18 @@ def main():
     # --- Define missing value configurations ---
 
     info_missing_config = {
-        "drop": {"SEX": ["Unknown"],
-                 "AN_START_DATETIME": None},
-        "ffill": ["HEIGHT", "WEIGHT"],
-        "lmm_impute": {"HEIGHT": ["SEX", "WEIGHT"],
-                       "WEIGHT": ["SEX", "HEIGHT"]}
+        "drop": {"sex": ["Unknown"],
+                 "timestamp": None},
+        "ffill": ["height", "weight"],
+        "lmm_impute": {"height": ["sex", "weight"],
+                       "weight": ["sex", "height"]}
         }
     
     
 
     labs_missing_config = {
-        "drop": {"Observation Value": [9999999.0],
-                 "Collection Datetime": None}
+        "drop": {"value": [9999999.0],
+                 "timestamp": None}
         }
 
     # --- Define constants for filtering lab tests ---
@@ -756,6 +776,7 @@ def main():
     final_df_filtered = merged_patient_info.merge(labs_final_subset, on=["LOG_ID", "MRN"], how="inner")
     
     print(f"Filtering complete. Final Row Count: {len(final_df_filtered)}")
+    # 695752
 
     # Export to csv
     print("--- Export data ---")
