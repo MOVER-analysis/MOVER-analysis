@@ -113,8 +113,8 @@ def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
     
     return df_cleaned
 
-# === Missing Value Imputation === 
-    
+# === Handling Missing Value === 
+
 def partition_by_completeness(df: pd.DataFrame,
                               target: str,
                               predictors: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Index]:
@@ -188,6 +188,89 @@ def run_lmm_imputation(df: pd.DataFrame,
     # print(f"{remaining_nulls} null values remain in '{target}'.")
 
     return df_filled
+
+
+def handle_missingness(df: pd.DataFrame, 
+                       config: Dict[str, Any],
+                       timestamp: Optional[str] = None,
+                       group: Optional[str] = None) -> pd.DataFrame:
+    """
+    Drop or impute missing values in df based on config.
+
+    Config is a dictionary detailing how the missing values in specified columns should be treated.
+    
+    Example:
+     config = {
+               "drop": {"sex": ["UNKNOWN"],
+                        "timestamp": None # Just drop actual NaNs},
+               "ffill": ["height", "weight"],
+               "lmm_impute": {"height": ["sex", "weight"],
+                              "weight": ["sex", "height"]}
+              }
+    
+    """
+    df_cleaned = df.copy()
+
+    # Drop missing values in specified cols
+    if "drop" in config:
+        for col, custom_val in config["drop"].items():
+            if col not in df_cleaned.columns:
+                raise KeyError(f"'{col}' not found in dataframe.")
+            # replace custom_val (if specified) with np.NaN
+            if custom_val:
+                df_cleaned[col] = df_cleaned[col].replace(custom_val, np.nan)
+            # drop missings
+            df_cleaned = df_cleaned.dropna(subset=[col])
+
+    # Forward fill
+    if "ffill" in config:
+        # sanity check: if timestamp is provided / exist in df
+        if not timestamp or timestamp not in df_cleaned.columns:
+            raise ValueError(f"Timestamp column '{timestamp}' is missing or invalid for ffill.")
+
+        sort_cols = [group, timestamp] if group else [timestamp]
+        df_cleaned = df_cleaned.sort_values(by=sort_cols)
+
+        for col in config["ffill"]:
+            if col in df_cleaned.columns:
+                if group:
+                    df_cleaned[col] = df_cleaned.groupby(group)[col].ffill()
+                else:
+                    df_cleaned[col] = df_cleaned[col].ffill()
+            else:
+                raise KeyError(f"Skipping forward fill for {col}: variable not found in dataset.")
+
+    # LMM
+    if "lmm_impute" in config:
+        # sanity check: group (random intercept) must be provided for lmm
+        if not group:
+            raise ValueError("Skipping lmm imputation: group column not provided.")
+
+        for target, predictors in config["lmm_impute"].items():
+            # Check target and predictors existence
+            if target not in df_cleaned.columns:
+                raise KeyError(f"Target column '{target}' not found.")
+            
+            missing_preds = [p for p in predictors if p not in df_cleaned.columns]
+            if missing_preds:
+                raise KeyError(f"Predictors {missing_preds} not found for target '{target}'.")
+            
+            if df_cleaned[target].isna().any():
+                df_cleaned = run_lmm_imputation(
+                    df=df_cleaned,
+                    target=target,
+                    predictors=predictors,
+                    group_col=group
+                )
+            else:
+                print(f"Skipping lmm imputation for {target}: no missing values found.")
+
+            
+            lmm_targets = list(config["lmm_impute"].keys())
+            print(f"Removing rows still missing all targets: {lmm_targets}")
+            df_cleaned = df_cleaned.dropna(subset=lmm_targets, how="all")
+                
+    return df_cleaned.reset_index(drop=True)
 
 # filtering lab test results
 
@@ -277,6 +360,8 @@ def clean_complications(postop: pd.DataFrame,
     Returns a df containing the variables in col_mapping and all encounters with valid encounter_id.
     """
 
+    print("Start cleaning patient postoperative complications data...")
+
     # pre-processing
     postop_cleaned = pre_process(postop, col_mapping)
 
@@ -288,10 +373,11 @@ def clean_complications(postop: pd.DataFrame,
 
 
 def clean_information(info: pd.DataFrame,
-                      col_mapping: dict,
-                      date_format: str = None,
+                      col_mapping: Dict[str, str], 
+                      date_format: str | None = None, 
                       convert_hw: bool = True,
-                      impute_hw: bool = True) -> pd.DataFrame:
+                      missing_config: Dict[str, Any] | None = None) -> pd.DataFrame:
+
     """
     Cleans info (patient_information dataframe) by:
     - Selecting and retaining only the values in col_mapping
@@ -314,19 +400,26 @@ def clean_information(info: pd.DataFrame,
     convert_hw = True if height (in feet and inches) and weight (in ounces) are provided 
     and need to be converted to meters and kg, respectively.
 
-    impute_hw = True if the missing values in height and weight need to be imputed.
-    """
+    Handles missing values as specified in missing_config.
 
-    # extract cols that will be used later 
-    # (returns None if col_mapping does not have the key
+    missing_config example: {"drop": {"sex": ["UNKNOWN"],
+                                      "timestamp": None # Just drop actual NaNs},
+                            "ffill": ["height", "weight"],
+                            "lmm_impute": {"height": ["sex", "weight"],
+                                           "weight": ["sex", "height"]}
+                            }
     
+    """
+    
+    print("Start cleaning patient information data...")
+    
+    # extract mapped column names
     patient_id = col_mapping.get("patient_id")
     timestamp = col_mapping.get("timestamp")
     height = col_mapping.get("height")
     weight = col_mapping.get("weight")
     sex = col_mapping.get("sex")
 
-    
     # pre-processing
     info_cleaned = pre_process(info, col_mapping)
 
@@ -352,68 +445,224 @@ def clean_information(info: pd.DataFrame,
         if weight:
             info_cleaned[weight] = 0.0283 * info_cleaned[weight]
 
-    # drop missing values (NaN and "Unknown") in sex
-    if sex:
-        info_cleaned = info_cleaned[
-            info_cleaned[sex].notna() & 
-            (info_cleaned[sex].astype(str).str.upper() != "UNKNOWN")
-        ].reset_index(drop=True)
-
-    # Impute height and weight
-    if impute_hw and height and weight:
-        print("Imputing height and weight using forward fill ...")
+    # handle missingness
+    if missing_config:
+        print("Handling missing values in patient information data...")
         
-        # forward fill, grouped by patient_id and sorted by timestamp
-        info_sorted = info_cleaned.sort_values(by = [patient_id, timestamp])
-        for col in [height, weight]:
-            if col:
-                info_sorted[col] = info_sorted.groupby(patient_id)[col].ffill()
+        info_final = handle_missingness(df=info_cleaned, 
+                                        group=patient_id, 
+                                        timestamp=timestamp, 
+                                        config=missing_config)
 
-        # check if any NAs remaining
-        has_h_na = info_sorted[height].isna().any()
-        has_w_na = info_sorted[weight].isna().any()
 
-        # setup prdictors for LMM imputation
-        # set sex as a predictor only if provided in the mapping
-        preds = [sex] if sex else []
-
-        if has_h_na:
-            print("Running LMM imputation for remaining missing height...")
-            info_sorted = run_lmm_imputation(
-                    df=info_sorted, 
-                    target=height, 
-                    predictors=preds + [weight], 
-                    group_col=patient_id
-                )
-        if has_w_na:
-            print("Running LMM imputation for remaining missing weight...")
-            info_sorted = run_lmm_imputation(
-                    df=info_sorted, 
-                    target=weight, 
-                    predictors=preds + [height], 
-                    group_col=patient_id
-                )
-        
-        # drop rows still missing both height and weight
-        print("Removing rows still missing both height and weight after imputation...")
-        info_filled = info_sorted.dropna(subset=[height, weight], how="all")
-
-        # print imputation summary
-        h_na = info_filled[height].isna().sum()
-        w_na = info_filled[weight].isna().sum()
-        print(f"Remaining NAs in {height}: {h_na}")
-        print(f"Remaining NAs in {weight}: {w_na}")
-
+        # print summary
+        for col in info_final.columns:
+            col_na = info_final[col].isna().sum()
+            print(f"Remaining NAs in {col}: {col_na}")
     else:
-        status = "disabled" if not impute_hw else "skipped (missing H/W)"
-        info_filled = info_cleaned
-        print(f"Height / Weight imputation {status}.")
+        print("Skipped handling missing values. missing_config not provided.")
 
     print(f"Cleaning complete for patient information data.")
-    print(f"Remaining {len(info_filled)} rows.")
+    print(f"Remaining {len(info_final)} rows.")
     # Note: should be 57026
+    
+    return info_final
 
-    return info_filled
+# def clean_information(info: pd.DataFrame,
+#                       col_mapping: dict,
+#                       date_format: Optional[str] = None,
+#                       convert_hw: bool = True,
+#                       impute_hw: bool = True) -> pd.DataFrame:
+#     """
+#     Cleans info (patient_information dataframe) by:
+#     - Selecting and retaining only the values in col_mapping
+#     - Removing invalid encounter_id values (those correspond to multiple patient_ids)
+#     - Treating missing values
+    
+#     using col_mapping as the source of truth for column names.
+
+#     col_mapping example: {"encounter_id": "LOG_ID", 
+#                           "patient_id": "MRN", 
+#                           "timestamp": "AN_START_DATETIME",
+#                           "height": "HEIGHT",
+#                           "weight": "WEIGHT",
+#                           "sex": "SEX",
+#                           "age": "BIRTH_DATE"}
+    
+#     If a timestamp variable is provided, then date_format detailing the format of timestamp 
+#     should also be provided (ex. "%m/%d/%y %H:%M")
+
+#     convert_hw = True if height (in feet and inches) and weight (in ounces) are provided 
+#     and need to be converted to meters and kg, respectively.
+
+#     impute_hw = True if the missing values in height and weight need to be imputed.
+#     """
+
+#     print("Start cleaning patient information data...")
+    
+#     # extract cols that will be used later 
+#     # (returns None if col_mapping does not have the key
+    
+#     patient_id = col_mapping.get("patient_id")
+#     timestamp = col_mapping.get("timestamp")
+#     height = col_mapping.get("height")
+#     weight = col_mapping.get("weight")
+#     sex = col_mapping.get("sex")
+
+#     # pre-processing
+#     info_cleaned = pre_process(info, col_mapping)
+
+#     # convert timestamp to datetime 
+#     # and drop encounters with missing timestamp
+#     if timestamp:
+#         info_cleaned[timestamp] = pd.to_datetime(
+#             info_cleaned[timestamp], format=date_format, errors="coerce"
+#         )
+#         info_cleaned = info_cleaned.dropna(subset=[timestamp]).reset_index(drop=True)
+
+#     # convert units
+#     if convert_hw:
+#         # convert height if provided
+#         if height:
+#             height_split = info_cleaned[height].astype(str).str.split("' ", expand=True)
+#             if height_split.shape[1] == 2:
+#                 feet = pd.to_numeric(height_split[0], errors="coerce")
+#                 inches = pd.to_numeric(height_split[1], errors="coerce")
+#                 info_cleaned[height] = 0.0254 * (feet * 12 + inches)
+        
+#         # convert weight if provided
+#         if weight:
+#             info_cleaned[weight] = 0.0283 * info_cleaned[weight]
+
+#     # drop missing values (NaN and "Unknown") in sex
+#     if sex:
+#         info_cleaned = info_cleaned[
+#             info_cleaned[sex].notna() & 
+#             (info_cleaned[sex].astype(str).str.upper() != "UNKNOWN")
+#         ].reset_index(drop=True)
+
+#     # Impute height and weight
+#     if impute_hw and height and weight:
+#         print("Imputing height and weight using forward fill ...")
+        
+#         # forward fill, grouped by patient_id and sorted by timestamp
+#         info_sorted = info_cleaned.sort_values(by = [patient_id, timestamp])
+#         for col in [height, weight]:
+#             if col:
+#                 info_sorted[col] = info_sorted.groupby(patient_id)[col].ffill()
+
+#         # check if any NAs remaining
+#         has_h_na = info_sorted[height].isna().any()
+#         has_w_na = info_sorted[weight].isna().any()
+
+#         # setup prdictors for LMM imputation
+#         # set sex as a predictor only if provided in the mapping
+#         preds = [sex] if sex else []
+
+#         if has_h_na:
+#             print("Running LMM imputation for remaining missing height...")
+#             info_sorted = run_lmm_imputation(
+#                     df=info_sorted, 
+#                     target=height, 
+#                     predictors=preds + [weight], 
+#                     group_col=patient_id
+#                 )
+#         if has_w_na:
+#             print("Running LMM imputation for remaining missing weight...")
+#             info_sorted = run_lmm_imputation(
+#                     df=info_sorted, 
+#                     target=weight, 
+#                     predictors=preds + [height], 
+#                     group_col=patient_id
+#                 )
+        
+#         # drop rows still missing both height and weight
+#         print("Removing rows still missing both height and weight after imputation...")
+#         info_filled = info_sorted.dropna(subset=[height, weight], how="all")
+
+#         # print imputation summary
+#         h_na = info_filled[height].isna().sum()
+#         w_na = info_filled[weight].isna().sum()
+#         print(f"Remaining NAs in {height}: {h_na}")
+#         print(f"Remaining NAs in {weight}: {w_na}")
+
+#     else:
+#         status = "disabled" if not impute_hw else "skipped (missing H/W)"
+#         info_filled = info_cleaned
+#         print(f"Height / Weight imputation {status}.")
+
+#     print(f"Cleaning complete for patient information data.")
+#     print(f"Remaining {len(info_filled)} rows.")
+#     # Note: should be 57026
+
+#     return info_filled
+
+
+def clean_labs(labs: pd.DataFrame, 
+               col_mapping: dict, 
+               predefined_tests: List[str],
+               use_common_tests: bool = True, 
+               date_format: Optional[str] = None) -> pd.DataFrame:
+    """
+    Cleans labs (patient_labs dataframe) by:
+    - Selecting and retaining only the values in col_mapping
+    - Removing invalid encounter_id values (those correspond to multiple patient_ids)
+    - Treating missing values
+    - Filtering desired lab tests
+    using col_mapping as the source of truth for column names.
+
+    
+    Example:
+    col_mapping = {"encounter_id": "LOG_ID",
+                   "patient_id": "MRN",
+                   "code": "Lab Code",
+                   "name": "Lab Name",
+                   "value": "Observation Value",
+                   "unit": "Measurement Units",
+                   "timestamp": "Collection Datetime"}
+
+    predefined_tests = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
+
+    if use_common_tests = True, then the 5 most common tests in labs df will also be included,
+    in addition to the tests in predefined_tests.
+    
+    If a timestamp variable is provided, then date_format detailing the format of timestamp 
+    should also be provided (ex. "%Y-%m-%d %H:%M:%S").
+    """
+
+    print("Start cleaning patient labs data...")
+
+    # extract cols that will be used later 
+    code = col_mapping.get("code")
+    name = col_mapping.get("name")
+    value = col_mapping.get("value")
+    unit = col_mapping.get("unit")
+    timestamp = col_mapping.get("timestamp")
+    
+    # pre-processing
+    labs_cleaned = pre_process(labs, col_mapping)
+
+    # convert timestamp to datetime 
+    # and drop encounters with missing timestamp
+    if timestamp:
+        labs_cleaned[timestamp] = pd.to_datetime(
+            labs_cleaned[timestamp], format=date_format, errors="coerce"
+        )
+        labs_cleaned = labs_cleaned.dropna(subset=[timestamp]).reset_index(drop=True)
+
+
+    # drop encoutners with missing lab value
+    if value:
+        labs_cleaned = labs_cleaned[
+            labs_cleaned[value].notna() & 
+            (labs_cleaned[value]!= 9999999.0)
+        ].reset_index(drop=True)
+
+    
+
+    return labs_filtered
+
+
 
 
     
@@ -432,9 +681,20 @@ def cleaning():
                    "sex": "SEX",
                    "age": "AGE"}
 
-    info = clean_information(info_raw, info_mapping, date_format = "%m/%d/%y %H:%M")
+    info_missing_config = {"drop": {"SEX": ["Unknown"],
+                                    "AN_START_DATETIME": None},
+                           "ffill": ["HEIGHT", "WEIGHT"],
+                           "lmm_impute": {"HEIGHT": ["SEX", "WEIGHT"],
+                                          "WEIGHT": ["SEX", "HEIGHT"]}
+                            }
 
-    
+    info = clean_information(info = info_raw, 
+                             col_mapping = info_mapping, 
+                             date_format = "%m/%d/%y %H:%M",
+                             convert_hw = True,
+                             missing_config = info_missing_config)
+
+    ##### TEST ERROR HANDLING
 
 
 if __name__ == "__main__":
@@ -457,16 +717,19 @@ if __name__ == "__main__":
         #                 sex: "SEX", 
         #                 timestamp: "AN_START_DATETIME"}
     
-        # labs_mapping = {encounter_id: "LOG_ID", 
-        #                 patient_id: "MRN", 
-        #                 lab_code: "Lab Code", 
-        #                 lab_name: "Lab Name", 
-        #                 value: "Observation Value", 
-        #                 units: "Measurement Units", 
-        #                 timestamp: "Collection Datetime"}
+        # labs_mapping = {"encounter_id": "LOG_ID", 
+        #                 "patient_id": "MRN", 
+        #                 "code": "Lab Code",
+        #                 "name": "Lab Name",
+        #                 "value": "Observation Value",
+        #                 "unit": "Measurement Units",
+        #                 "timestamp": "Collection Datetime"}
+
     
     # For find_lab_name_code_pair: 
-        # Define the list of lab tests to be included
+        # Define the list of lab tests to be included:
+        #     ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate'] + top 5
+    
         # Define the dictionary for special search cases: 
         # special_search = {
         #     "pH": {"pat": r"\bpH\b", "case": True, "regex": True},
