@@ -733,16 +733,16 @@ def main():
     
     # filter labs
     timing_info = info[['LOG_ID', 'MRN', 'AN_START_DATETIME']]
-    labs_filtered = labs.merge(timing_info, on=['LOG_ID', 'MRN'], how='inner')
+    labs_filtered = labs_filtered.merge(timing_info, on=['LOG_ID', 'MRN'], how='inner')
     
     # Filter for labs before anesthesia
-    labs_filtered = labs_filtered[
+    labs_final = labs_filtered[
         labs_filtered['Collection Datetime'] <= labs_filtered['AN_START_DATETIME']
     ]
     
     # Get latest indices
-    latest_indices = labs_filtered.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
-    labs_final_subset = labs_filtered.loc[latest_indices].copy()
+    latest_indices = labs_final.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
+    labs_final_subset = labs_final.loc[latest_indices].copy()
     
     # Drop the AN_START_DATETIME from the subset before the final merge 
     # to avoid AN_START_DATETIME_x / _y
