@@ -317,7 +317,9 @@ def clean_information(info: pd.DataFrame,
     impute_hw = True if the missing values in height and weight need to be imputed.
     """
 
-    # extract cols that will be used later
+    # extract cols that will be used later 
+    # (returns None if col_mapping does not have the key
+    
     patient_id = col_mapping.get("patient_id")
     timestamp = col_mapping.get("timestamp")
     height = col_mapping.get("height")
@@ -412,15 +414,17 @@ def clean_information(info: pd.DataFrame,
     # Note: should be 57026
 
     return info_filled
+
+
     
+# === For testing ===
 
-
-def main():
+def cleaning():
     input_files = "patient_information.csv"
     info_raw = pd.read_csv(RAW_DATA_PATH + input_files)
 
     info_raw.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
-    col_mapping = {"encounter_id": "LOG_ID",
+    info_mapping = {"encounter_id": "LOG_ID",
                    "patient_id": "MRN",
                    "timestamp": "AN_START_DATETIME",
                    "height": "HEIGHT",
@@ -428,39 +432,38 @@ def main():
                    "sex": "SEX",
                    "age": "AGE"}
 
-    info = clean_information(info_raw, col_mapping, date_format = "%m/%d/%y %H:%M")
+    info = clean_information(info_raw, info_mapping, date_format = "%m/%d/%y %H:%M")
 
-    # fo
+    
 
 
 if __name__ == "__main__":
-    main()
+    cleaning()
     
     
-    # === Note ===
-    # in main.py, need to define the following:
-    # For pre_process: define the subset of columns to keep in each dataset
-        # POSTOP_COLS = {id1: "LOG_ID",
-        #                id2: "MRN", 
-        #                y: "SMRTDTA_ELEM_VALUE"}
+    # === Note: in main.py, need to define the following ===
     
-        # INFO_COLS = {id1: "LOG_ID", 
-        #             id2: "MRN", 
-        #             age: "BIRTH_DATE", 
-        #             height: "HEIGHT", 
-        #             weight: "WEIGHT", 
-        #             sex: "SEX", 
-        #             time: "AN_START_DATETIME"}
+    # For pre_process and the cleaning functions: 
+    # define the subset of columns to keep in each dataset
+        # postop_mapping = {encounter_id: "LOG_ID",
+        #                   patient_id: "MRN", 
+        #                   y: "SMRTDTA_ELEM_VALUE"}
     
-        # LABS_COLS = {id1: "LOG_ID", 
-        #              id2: "MRN", 
-        #              lab_code: "Lab Code", 
-        #              lab_name: "Lab Name", 
-        #              value: "Observation Value", 
-        #              units: "Measurement Units", 
-        #              time: "Collection Datetime"}
+        # info_mapping = {encounter_id: "LOG_ID", 
+        #                 patient_id: "MRN", 
+        #                 age: "BIRTH_DATE", 
+        #                 height: "HEIGHT", 
+        #                 weight: "WEIGHT", 
+        #                 sex: "SEX", 
+        #                 timestamp: "AN_START_DATETIME"}
     
-    # For remove_invalid_ids: id1 = LOG_ID, id2 = MRN
+        # labs_mapping = {encounter_id: "LOG_ID", 
+        #                 patient_id: "MRN", 
+        #                 lab_code: "Lab Code", 
+        #                 lab_name: "Lab Name", 
+        #                 value: "Observation Value", 
+        #                 units: "Measurement Units", 
+        #                 timestamp: "Collection Datetime"}
     
     # For find_lab_name_code_pair: 
         # Define the list of lab tests to be included
