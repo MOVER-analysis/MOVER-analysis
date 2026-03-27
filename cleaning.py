@@ -33,6 +33,7 @@ def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
     """
     Pre-process df by 
     - Selecting and retaining only cols_to_keep
+    - Dropping rows where either encounter_id or patient_id is null
     - Removing invalid encounter_id values (those correspond to multiple patient_id)
 
     Example col_mapping:
@@ -44,7 +45,7 @@ def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
     
     Return cleaned df
     """
-
+        
     # extract IDs from mapping
     encounter_id = col_mapping.get("encounter_id")
     patient_id = col_mapping.get("patient_id")
@@ -55,6 +56,9 @@ def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
 
     # include only the selected columns
     df_cleaned = df[keep_cols].reset_index(drop=True)
+
+    # drop rows with missing encounter / patient ids
+    df_cleaned = df_cleaned.dropna(subset = [encounter_id, patient_id])
 
     # drop invalid encounter IDs
     if encounter_id and patient_id:
