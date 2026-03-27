@@ -1,8 +1,3 @@
-# functions to write:
-# 1. removing invalid LOG_ID
-# 2. ffill for height and weight (partitioning by MRN, sort by date)
-# 3. regression imputation
-
 # === Import libraries === 
 import pandas as pd
 import numpy as np
@@ -18,77 +13,108 @@ import statsmodels.formula.api as smf
 # for function definition and calls
 from typing import List, Tuple, Callable, Dict, Any, Optional
 
+
 # === Global Constants === 
 # Path to data folder
 RAW_DATA_PATH = "raw/"
 OUTPUT_DATA_PATH = "data/"
 
-# Relevant variables
-POSTOP_COLS = ["LOG_ID", "MRN", "SMRTDTA_ELEM_VALUE"]
-INFO_COLS = ["LOG_ID", "MRN", "BIRTH_DATE", "HEIGHT", "WEIGHT", "SEX", "AN_START_DATETIME"]
-LABS_COLS = ["LOG_ID", "MRN", "Lab Code", "Lab Name", "Observation Value", "Measurement Units", "Collection Datetime"]
-
-# Lab tests
-LAB_TESTS = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
-
-# === Helper Functions ===
-
-# For preprocessing
-
-def remove_invalid_ids(df: pd.DataFrame, 
-                           id1: str = "LOG_ID",
-                           id2: str = "MRN") -> pd.DataFrame:
+# === Pre-processing Functions === 
+def validate_col_existence(df: pd.DataFrame, columns = List[str]):
     """
-    Removes df rows with id1 values corresponding to multiple id2 values.
-    By default id1 = LOG_ID, id2 = MRN.
+    Check if columns exist in df. 
+    Raise KeyError if any are missing.
     """
-    # Make sure both id1 and id2 exist in df
-    required_cols = [id1, id2]
-    missing_cols = [col for col in required_cols if col not in df.columns]
 
-    # Raise an error if either of id1 or id2 is missing
+    missing_cols = [col for col in columns if col not in df.columns]
+
     if missing_cols:
-        raise KeyError(f"Dataframe is missing the required columns: {missing_cols}.")
+        raise KeyError(f"Dataframe is missing the required columns: {missing_cols}")
 
-    # Group by id1 and count id2
-    id_pair_count = df.groupby(id1)[id2].nunique()
-    
-    # Identify id1 with multiple id2
-    ids_to_remove = id_pair_count[id_pair_count > 1].index 
-    
-    # Remove invalid log ids
-    df_cleaned = df[~df[id1].isin(ids_to_remove)].reset_index(drop = True)
 
-    # Logging output
-    removed_count = len(ids_to_remove)
-    print(f"Removed {removed_count} invalid {id1} values. {df_cleaned[id1].nunique()} unique {id1} remain.")
+# def pre_process(df: pd.DataFrame, cols_to_keep: List[str], 
+#                 encounter_id, patient_id) -> pd.DataFrame:
+#     """
+#     Pre-process df by 
+#     - Selecting and retaining only cols_to_keep
+#     - Removing invalid encounter_id values (those correspond to multiple patient_id)
     
-    return df_cleaned
+#     Return cleaned df
+#     """
 
-def pre_process(df: pd.DataFrame, cols_to_keep: List[str]) -> pd.DataFrame:
+#     # Make sure encounter_id, patient_id and all columns in cols_to_keep exist in df
+#     cols = [encounter_id, patient_id] + cols_to_keep
+#     validate_col_existence(df, cols)
+
+#     # Select relevant columns
+#     # use reset_index to make sure df is a dataframe not a slice
+#     df = df[cols_to_keep].reset_index(drop = True)
+
+#     # Drop invalid encounter_id
+#     # Group by id1 and count patient_id
+#     id_pair_count = df.groupby(encounter_id)[patient_id].nunique()
+    
+#     # Identify encounter_id with multiple patient_id
+#     ids_to_remove = id_pair_count[id_pair_count > 1].index 
+    
+#     # Remove invalid encounter_id values
+#     df_cleaned = df[~df[encounter_id].isin(ids_to_remove)].reset_index(drop = True)
+
+#     # Logging output
+#     removed_count = len(ids_to_remove)
+#     print(f"Removed {removed_count} invalid {encounter_id} values from {df}. {df_cleaned[encounter_id].nunique()} unique {encounter_id} remain.")
+    
+    
+#     return df_cleaned
+
+
+def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
     """
     Pre-process df by 
     - Selecting and retaining only cols_to_keep
-    - Removing invalid LOG_ID values (those correspond to multiple MRNs)
+    - Removing invalid encounter_id values (those correspond to multiple patient_id)
 
+    Example col_mapping:
+        {
+            encounter_id: "LOG_ID",
+            patient_id: "MRN",
+            ...
+        }
+    
     Return cleaned df
     """
-    # Raise an error if any of cols_to_keep is missing from df
-    missing_cols = [col for col in cols_to_keep if col not in df.columns]
-    if missing_cols:
-        raise KeyError(f"The following required columns are missing: {missing_cols}")
 
-    # Select relevant columns
-    # use .copy() to make sure df is a dataframe not a slice
-    df = df[cols_to_keep].copy()
+    # extract IDs from mapping
+    encounter_id = col_mapping.get("encounter_id")
+    patient_id = col_mapping.get("patient_id")
 
-    # Drop invalid LOG_IDs
-    df_cleaned = remove_invalid_ids(df)
+    # make sure the columns we need to keep are in the df
+    keep_cols = list(col_mapping.values())
+    validate_col_existence(df, keep_cols)
+
+    # include only the selected columns
+    df_cleaned = df[keep_cols].reset_index(drop=True)
+
+    # drop invalid encounter IDs
+    if encounter_id and patient_id:
+        # count unique patients per encounter
+        id_counts = df_cleaned.groupby(encounter_id)[patient_id].nunique()
+        
+        # find encounters associated with more than 1 patient
+        invalid_enc_ids = id_counts[id_counts > 1].index
+        df_cleaned = df_cleaned[~df_cleaned[encounter_id].isin(invalid_enc_ids)].reset_index(drop=True)
+        removed_count = len(invalid_enc_ids)
+        print(f"Removed {removed_count} invalid {encounter_id}s.")
+        print(f"{df_cleaned[encounter_id].nunique()} unique {encounter_id}s remain.")
+
+    else:
+        # if encounter id or patient id not provided
+        print("Skipping ID integrity check: encounter ID or patient ID missing from mapping.")
     
     return df_cleaned
 
-# For missing value imputation
-
+# === Missing Value Imputation === 
+    
 def partition_by_completeness(df: pd.DataFrame,
                               target: str,
                               predictors: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Index]:
@@ -98,8 +124,8 @@ def partition_by_completeness(df: pd.DataFrame,
     """
 
     # Ensure target and predictors are present in the dataframe
-    if not set(predictors).issubset(df.columns) or target not in df.columns:
-        raise KeyError(f"{target} or {predictors} not found in dataframe.")
+    cols = [target] + predictors
+    validate_col_existence(df, cols)
 
     # Training Set: target and all predictors are not null
     train_mask = df[target].notna() & df[predictors].notna().all(axis = 1)
@@ -113,12 +139,8 @@ def partition_by_completeness(df: pd.DataFrame,
     # Ensure train and test sets are not empty
     if train_df.empty:
         raise ValueError(f"No complete cases available to train model for {target}.")
-    
-    if test_df.empty:
-        print(f"No missing values found for {target}.")
 
     return train_df, test_df, test_index
-    
 
 def run_lmm_imputation(df: pd.DataFrame,
                        target: str,
@@ -128,8 +150,13 @@ def run_lmm_imputation(df: pd.DataFrame,
     Applies regression imputation to fill missing values in target using predictors,
     using a linear mixed model with predictors as fixed effect and group_col as random intercept.
     """
-    df_filled = df.copy()
+
+    # Ensure target, predictors and group_col are present in the dataframe
+    cols = [target] + predictors + [group_col]
+    validate_col_existence(df, cols)
     
+    df_filled = df.copy()
+
     try:
         # Partition data into train (complete) and test (missing) sets
         train, test, test_idx = partition_by_completeness(df_filled, target, predictors) 
@@ -157,18 +184,19 @@ def run_lmm_imputation(df: pd.DataFrame,
         print(f"Unexpected error during {target} imputation: {e}")
 
     # Imputation summary
-    remaining_nulls = df_filled[target].isna().sum()
-    print(f"Final check: {remaining_nulls} null values remain in '{target}'.")
+    # remaining_nulls = df_filled[target].isna().sum()
+    # print(f"{remaining_nulls} null values remain in '{target}'.")
 
     return df_filled
 
-# For filtering lab tests
+# filtering lab test results
 
 def find_lab_name_code_pair(df: pd.DataFrame,
                             test_list: List[str],
-                            special_configs: Optional[Dict[str, Dict[str, Any]]] = None,
-                            name_col: str = "Lab Name",
-                            code_col: str = "Lab Code") -> pd.DataFrame:
+                            name_col: str,
+                            code_col: str,
+                            special_configs: Optional[Dict[str, Dict[str, Any]]] = None
+                           ) -> pd.DataFrame:
     """
     Finds name-code pairs for each test in test_list with a default search strategy 
     (case-insensitive, include all relevant results).
@@ -190,6 +218,10 @@ def find_lab_name_code_pair(df: pd.DataFrame,
     Returns a dataframe of selected pairs.
     """
 
+    # Make sure name_col and code_col exist in df
+    cols = [name_col, code_col]
+    validate_col_existence(df, cols)
+    
     special_configs = special_configs or {}
     selected_pairs = []
 
@@ -227,259 +259,217 @@ def find_lab_name_code_pair(df: pd.DataFrame,
 
     return pd.DataFrame(selected_pairs)
 
-# === Functions for Data Cleaning ===
 
-def clean_complications(postop: pd.DataFrame, cols_to_keep: List[str] = POSTOP_COLS) -> pd.DataFrame:
+# === Data Cleaning ===
+
+def clean_complications(postop: pd.DataFrame, 
+                        col_mapping: dict) -> pd.DataFrame:
     
     """
     Cleans postop (patient_postoperative_complications dataframe) by:
-    - Selecting and retaining only cols_to_keep
-    - Removing invalid LOG_ID values (those correspond to multiple MRNs)
+    - Selecting and retaining only the values in col_mapping
+    - Removing invalid encounter_id values (those correspond to multiple patient_ids)
 
-    Returns a df containing cols_to_keep and all encounters with valid LOG_IDs.
+    col_mapping example: {"encounter_id": "LOG_ID", 
+                          "patient_id": "MRN", 
+                          "response": "SMRTDTA_ELEM_VALUE"}
+
+    Returns a df containing the variables in col_mapping and all encounters with valid encounter_id.
     """
 
-    print("Starting cleaning patient postoperative complications data ...")
+    # pre-processing
+    postop_cleaned = pre_process(postop, col_mapping)
 
-    postop_cleaned = pre_process(postop, cols_to_keep)
-
-    print(f"Cleaning complete. Final Row Count: {len(postop_cleaned)}")
+    print(f"Cleaning complete for post-operative complications data.")
+    print(f"Remaining {len(postop_cleaned)} rows.")
     # should be 203939
 
     return postop_cleaned
-    
 
-def clean_information(info: pd.DataFrame, 
-                      cols_to_keep: List[str] = INFO_COLS,
-                      date_format: str = "%m/%d/%y %H:%M") -> pd.DataFrame:
+
+def clean_information(info: pd.DataFrame,
+                      col_mapping: dict,
+                      date_format: str = None,
+                      convert_hw: bool = True,
+                      impute_hw: bool = True) -> pd.DataFrame:
     """
     Cleans info (patient_information dataframe) by:
-    - Selecting and retaining only cols_to_keep
-    - Removing invalid LOG_ID values (those correspond to multiple MRNs)
-    - Converting variables to desired type
+    - Selecting and retaining only the values in col_mapping
+    - Removing invalid encounter_id values (those correspond to multiple patient_ids)
     - Treating missing values
+    
+    using col_mapping as the source of truth for column names.
 
-    INFO_COLS = ["LOG_ID", "MRN", "BIRTH_DATE", "HEIGHT", "WEIGHT", "SEX", "AN_START_DATETIME"]
+    col_mapping example: {"encounter_id": "LOG_ID", 
+                          "patient_id": "MRN", 
+                          "timestamp": "AN_START_DATETIME",
+                          "height": "HEIGHT",
+                          "weight": "WEIGHT",
+                          "sex": "SEX",
+                          "age": "BIRTH_DATE"}
+    
+    If a timestamp variable is provided, then date_format detailing the format of timestamp 
+    should also be provided (ex. "%m/%d/%y %H:%M")
 
-    date_format: format of AN_START_DATETIME
+    convert_hw = True if height (in feet and inches) and weight (in ounces) are provided 
+    and need to be converted to meters and kg, respectively.
 
-    Returns a cleaned patient information containing cols_to_keep and all encounters with valid LOG_IDs.
+    impute_hw = True if the missing values in height and weight need to be imputed.
     """
 
-    print("Starting cleaning patient information data ...")
+    # extract cols that will be used later
+    patient_id = col_mapping.get("patient_id")
+    timestamp = col_mapping.get("timestamp")
+    height = col_mapping.get("height")
+    weight = col_mapping.get("weight")
+    sex = col_mapping.get("sex")
 
-    # --- PRE-PROCESSING ---
-
-    info_cleaned = pre_process(info, cols_to_keep)
-
-    # --- CONVERT VARIABLES ---
     
-    # Convert AN_START_DATETIME to DateTime
-    info_cleaned["AN_START_DATETIME"] = pd.to_datetime(info_cleaned["AN_START_DATETIME"], 
-                                                       format = date_format, 
-                                                       errors = "coerce")
+    # pre-processing
+    info_cleaned = pre_process(info, col_mapping)
 
-    # Convert HEIGHT from feet and inches to meters
-    height_df = info_cleaned["HEIGHT"].str.split("' ", expand = True) # split string by '
-    feet = pd.to_numeric(height_df[0], errors = "coerce")
-    inches = pd.to_numeric(height_df[1], errors = "coerce")
-    info_cleaned["HEIGHT"] = 0.0254 * (feet * 12 + inches)
+    # convert timestamp to datetime 
+    # and drop encounters with missing timestamp
+    if timestamp:
+        info_cleaned[timestamp] = pd.to_datetime(
+            info_cleaned[timestamp], format=date_format, errors="coerce"
+        )
+        info_cleaned = info_cleaned.dropna(subset=[timestamp]).reset_index(drop=True)
 
-    # Convert WEIGHT from ounces to kg
-    info_cleaned["WEIGHT"] = 0.0283 * info_cleaned["WEIGHT"]
+    # convert units
+    if convert_hw:
+        # convert height if provided
+        if height:
+            height_split = info_cleaned[height].astype(str).str.split("' ", expand=True)
+            if height_split.shape[1] == 2:
+                feet = pd.to_numeric(height_split[0], errors="coerce")
+                inches = pd.to_numeric(height_split[1], errors="coerce")
+                info_cleaned[height] = 0.0254 * (feet * 12 + inches)
+        
+        # convert weight if provided
+        if weight:
+            info_cleaned[weight] = 0.0283 * info_cleaned[weight]
 
-    # Rename BIRTH_DATE to AGE
-    info_cleaned.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
+    # drop missing values (NaN and "Unknown") in sex
+    if sex:
+        info_cleaned = info_cleaned[
+            info_cleaned[sex].notna() & 
+            (info_cleaned[sex].astype(str).str.upper() != "UNKNOWN")
+        ].reset_index(drop=True)
 
-    # --- HANDLE MISSING VALUES ---
+    # Impute height and weight
+    if impute_hw and height and weight:
+        print("Imputing height and weight using forward fill ...")
+        
+        # forward fill, grouped by patient_id and sorted by timestamp
+        info_sorted = info_cleaned.sort_values(by = [patient_id, timestamp])
+        for col in [height, weight]:
+            if col:
+                info_sorted[col] = info_sorted.groupby(patient_id)[col].ffill()
 
-    print("Handling missing values in patient_information data...")
+        # check if any NAs remaining
+        has_h_na = info_sorted[height].isna().any()
+        has_w_na = info_sorted[weight].isna().any()
 
-    # Remove "Unknown" value in SEX variable
-    info_cleaned = info_cleaned[info_cleaned["SEX"] != "Unknown"].reset_index(drop = True)
+        # setup prdictors for LMM imputation
+        # set sex as a predictor only if provided in the mapping
+        preds = [sex] if sex else []
 
-    # Remove missing AN_START_DATETIME
-    info_cleaned = info_cleaned.dropna(subset = ["AN_START_DATETIME"]).reset_index(drop = True)
+        if has_h_na:
+            print("Running LMM imputation for remaining missing height...")
+            info_sorted = run_lmm_imputation(
+                    df=info_sorted, 
+                    target=height, 
+                    predictors=preds + [weight], 
+                    group_col=patient_id
+                )
+        if has_w_na:
+            print("Running LMM imputation for remaining missing weight...")
+            info_sorted = run_lmm_imputation(
+                    df=info_sorted, 
+                    target=weight, 
+                    predictors=preds + [height], 
+                    group_col=patient_id
+                )
+        
+        # drop rows still missing both height and weight
+        print("Removing rows still missing both height and weight after imputation...")
+        info_filled = info_sorted.dropna(subset=[height, weight], how="all")
 
-    # Impute HEIGHT and WEIGHT
-    # Step 1: try forward fill, grouped by MRN and sorted by AN_START_DATETIME
-    info_sorted = info_cleaned.sort_values(by = ["MRN", "AN_START_DATETIME"])
-    info_sorted['HEIGHT'] = info_sorted.groupby("MRN")["HEIGHT"].ffill()
-    info_sorted['WEIGHT'] = info_sorted.groupby("MRN")["WEIGHT"].ffill()
-    info_sorted = info_sorted.reset_index(drop = True)
+        # print imputation summary
+        h_na = info_filled[height].isna().sum()
+        w_na = info_filled[weight].isna().sum()
+        print(f"Remaining NAs in {height}: {h_na}")
+        print(f"Remaining NAs in {weight}: {w_na}")
 
-    # Step 2: try regression imputation
-    info_filled = run_lmm_imputation(df = info_sorted,
-                                    target = "HEIGHT",
-                                    predictors = ["SEX", "WEIGHT"],
-                                    group_col = "MRN")
+    else:
+        status = "disabled" if not impute_hw else "skipped (missing H/W)"
+        info_filled = info_cleaned
+        print(f"Height / Weight imputation {status}.")
 
-    info_filled = run_lmm_imputation(df = info_filled,
-                                    target = "WEIGHT",
-                                    predictors = ["SEX", "HEIGHT"],
-                                    group_col = "MRN")
-
-    # Step 3: drop remaining NAs (rows still missing both HEIGHT and WEIGHT)
-    print("Drop remaining NAs in HEIGHT and WEIGHT")
-    info_filled = info_filled.dropna(subset = ["HEIGHT", "WEIGHT"], how = "all").reset_index(drop = True)
-
-    # check if all NAs are filled/dropped
-    height_na = info_filled['HEIGHT'].isna().sum()
-    wegith_na = info_filled['WEIGHT'].isna().sum()
-    print(f"Remaining NAs in HEIGHT: {height_na}")
-    print(f"Remaining NAs in WEIGHT: {wegith_na}")
-    
-    print(f"Cleaning complete. Final Row Count: {len(info_filled)}") 
+    print(f"Cleaning complete for patient information data.")
+    print(f"Remaining {len(info_filled)} rows.")
     # Note: should be 57026
 
     return info_filled
     
 
-def clean_labs(labs: pd.DataFrame, 
-               cols_to_keep: List[str] = LABS_COLS,
-               predefined_tests: List[str] = LAB_TESTS,
-               date_format: str = "%Y-%m-%d %H:%M:%S") -> pd.DataFrame:
-    """
-    Cleans info (patient_information dataframe) by:
-    - Selecting and retaining only cols_to_keep
-    - Removing invalid LOG_ID values (those correspond to multiple MRNs)
-    - Converting variables to desired type
-    - Treating missing values
-    - Filtering for desired lab tests
-
-    LABS_COLS = ["LOG_ID", "MRN", "Lab Code", "Lab Name", "Observation Value", "Measurement Units", "Collection Datetime"]
-    LAB_TESTS = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
-
-    date_format: format of Collection Datetime
-
-    Returns a cleaned lab test data containing cols_to_keep and all encounters with valid LOG_IDs.
-    """
-
-    print("Starting cleaning patient labs data ...")
-    
-    # --- PRE-PROCESSING ---
-
-    labs_cleaned = pre_process(labs, cols_to_keep)
-
-    # --- CONVERT VARIABLES ---
-    # Convert Collection Datetime to DateTime
-    labs_cleaned["Collection Datetime"] = pd.to_datetime(labs_cleaned["Collection Datetime"],
-                                                         format = date_format,
-                                                         errors = "coerce")
-
-    # --- HANDLE MISSING VALUES ---
-    # Drop rows with Observation Value = 9999999.0
-    labs_cleaned = labs_cleaned[labs_cleaned["Observation Value"] != 9999999.0]
-
-    # --- FILTER LAB TESTS ---
-    # Find the 5 most common lab tests excluding those in LAB_TESTS
-    mask = labs_cleaned["Lab Name"].str.contains('|'.join(predefined_tests), case = False, na = False)
-    other_tests_df = labs_cleaned[~mask]
-    top5_tests = other_tests_df["Lab Name"].value_counts().head(5).index.tolist()
-    print(f"Most common tests {top5_tests}")
-
-    # Choose most common lab name-code pair for each test
-    tests_to_filter = predefined_tests + top5_tests
-    
-    special_search = {
-        "pH": {"pat": r"\bpH\b", "case": True, "regex": True},
-        "Lactate": {"exclude": "D-Lactate"}
-    }
-    
-    tests_df = find_lab_name_code_pair(df = labs_cleaned, test_list = tests_to_filter, special_configs = special_search)
-    print(f"Selected pairs: {tests_df}")
-
-    # Filter to include only rows matching the selected name-code pair
-    keys = ["Lab Name", "Lab Code"]
-    i1 = labs_cleaned.set_index(keys).index
-    i2 = tests_df.set_index(keys).index
-    
-    # filter to include only the 10 selected name-code pairs
-    labs_filtered = labs_cleaned[i1.isin(i2)].reset_index(drop=True)
-
-    print(f"Cleaning complete. Final Row Count: {len(labs_filtered)}")
-    # should be 5052813
-
-    return labs_filtered
-
-
-
-# === Main ===
 
 def main():
-    # --- Define file paths ---
-    input_files = ["patient_information.csv", "patient_post_op_complications.csv", "patient_labs.csv"]
-    raw_files = {} # store .csv files into a dictionary
-    output_file = "cleaned_data.csv"
+    input_files = "patient_information.csv"
+    info_raw = pd.read_csv(RAW_DATA_PATH + input_files)
 
-    print("--- Loading data --- ")
+    info_raw.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
+    col_mapping = {"encounter_id": "LOG_ID",
+                   "patient_id": "MRN",
+                   "timestamp": "AN_START_DATETIME",
+                   "height": "HEIGHT",
+                   "weight": "WEIGHT",
+                   "sex": "SEX",
+                   "age": "AGE"}
 
-    # --- Load raw data files ---
-    try:
-        for file in input_files:
-            file_path = RAW_DATA_PATH + file
-            print(f"Reading {file_path}...")
+    info = clean_information(info_raw, col_mapping, date_format = "%m/%d/%y %H:%M")
 
-            # read in .csv
-            df = pd.read_csv(file_path)
-
-            # store in a dictionary with the key being the file name
-            key = file.replace(".csv", "")
-            raw_files[key] = df
-            print(f"Successfully loaded {file}")
-            
-    # Raise an error if file not found
-    except FileNotFoundError as e:
-        print(f"\n[Error] A required file is missing: ")
-        print(f"{e}")
-        return
-        
-    # Raise an error if an unexpected error occurred
-    except Exception as e:
-        print(f"\n[Error] An unexpected error occurred while reading files: ")
-        print(f"{e}")
-        return
-
-    # --- Extract dataframes ---
-    postop_raw = raw_files["patient_post_op_complications"]
-    info_raw = raw_files["patient_information"]
-    labs_raw = raw_files["patient_labs"]
-    
-    print("\nAll data ready for processing")
-
-    # --- Clean data ---
-    postop = clean_complications(postop_raw)
-    info = clean_information(info_raw)
-    labs = clean_labs(labs_raw)
-
-    # --- Merge data ---
-    print(" --- Merging dataframes --- ")
-    merged_df = postop.merge(info, on = ["LOG_ID", "MRN"], how = "inner")
-    merged_df = merged_df.merge(labs, on = ["LOG_ID", "MRN"], how = "inner")
-    nlog = merged_df["LOG_ID"].nunique()
-    print(f"Merging complete. \nRow Count: {len(merged_df)}. \nUnique LOG ID: {nlog}")
-
-    # -- Final filtering of lab tests ---
-    print(" --- Filtering lab tests taken before anesthesia --- ")
-    final_df = merged_df[merged_df['Collection Datetime'] <= merged_df['AN_START_DATETIME']].reset_index(drop = True)
-
-    # group by LOG_ID, MRN and Lab Name
-    # find indices corresponding to the latest Collection Datetime for each group
-    latest_indices = final_df.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
-    final_df_filtered = final_df.loc[latest_indices].reset_index(drop = True)
-
-    print(f"Filtering complete. Final Row Count: {len(final_df_filtered)}")
-    # should be 173721
-
-    # Export to csv
-    print("--- Export data ---")
-    output_path = OUTPUT_DATA_PATH + output_file
-    final_df_filtered.to_csv(output_path, index = False)
-    print(f"File saved at {output_path}")
+    # fo
 
 
 if __name__ == "__main__":
     main()
-            
     
+    
+    # === Note ===
+    # in main.py, need to define the following:
+    # For pre_process: define the subset of columns to keep in each dataset
+        # POSTOP_COLS = {id1: "LOG_ID",
+        #                id2: "MRN", 
+        #                y: "SMRTDTA_ELEM_VALUE"}
+    
+        # INFO_COLS = {id1: "LOG_ID", 
+        #             id2: "MRN", 
+        #             age: "BIRTH_DATE", 
+        #             height: "HEIGHT", 
+        #             weight: "WEIGHT", 
+        #             sex: "SEX", 
+        #             time: "AN_START_DATETIME"}
+    
+        # LABS_COLS = {id1: "LOG_ID", 
+        #              id2: "MRN", 
+        #              lab_code: "Lab Code", 
+        #              lab_name: "Lab Name", 
+        #              value: "Observation Value", 
+        #              units: "Measurement Units", 
+        #              time: "Collection Datetime"}
+    
+    # For remove_invalid_ids: id1 = LOG_ID, id2 = MRN
+    
+    # For find_lab_name_code_pair: 
+        # Define the list of lab tests to be included
+        # Define the dictionary for special search cases: 
+        # special_search = {
+        #     "pH": {"pat": r"\bpH\b", "case": True, "regex": True},
+        #     "Lactate": {"exclude": "D-Lactate"}
+        # }
+    
+    # For clean_information: 
+        # rename BIRTH_DATE to AGE outside of the function
     
