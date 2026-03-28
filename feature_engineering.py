@@ -1,23 +1,3 @@
-# === import libraries === 
-import pandas as pd
-
-# === global constants ===
-## Path to data folder
-DATA_PATH = "data/"
-
-## config for creating binary indicator columns
-BINARY_COL_CONFIG = {
-    "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia", "in"),
-    "SEX": ("female", "sex", "exact")
-}
-
-## config for calculating BMI from height and weight
-BMI_CONFIG = {
-    "height_col": ("HEIGHT", "m"),
-    "weight_col": ("WEIGHT", "kg"),
-    "new_col": "bmi"
-}
-
 # === functions ===
 def create_binary_cols(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """
@@ -59,6 +39,7 @@ def create_binary_cols(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                 "Use 'in' or 'exact'."
             )
 
+    print("Binary columns created successfully.")
     return df
 
 def calculate_bmi(df: pd.DataFrame, config: dict) -> pd.DataFrame:
@@ -99,12 +80,16 @@ def calculate_bmi(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     # Calculate BMI as weight (kg) divided by height squared (m^2)
     df[new_col] = weight / (height ** 2)
 
+    print(f"BMI column created successfully: '{new_col}'.")
     return df
 
 # === main ===
 
 def main():
     # --- define file paths ---
+    ## Path to data folder
+    DATA_PATH = "data/"
+    
     input_file = "cleaned_data.csv"
     output_file = "feature_engineered_data.csv"
 
@@ -112,19 +97,23 @@ def main():
     output_path = DATA_PATH + output_file
 
     # --- read data ---
-    try:
-        df = pd.read_csv(input_path)
-        print(f"Successfully loaded {input_file}.")
-    except FileNotFoundError:
-        print(f"{input_file} not found at {DATA_PATH}")
-        return
+    df = load_data(input_path)
 
     # --- feature engineering ---
+    ## config for creating binary indicator columns
+    BINARY_COL_CONFIG = {
+        "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia", "in"),
+        "SEX": ("female", "sex", "exact")
+    }
     df = create_binary_cols(df, BINARY_COL_CONFIG)
-    print("Binary columns created successfully.")
-    
+
+    ## config for calculating BMI from height and weight
+    BMI_CONFIG = {
+        "height_col": ("HEIGHT", "m"),
+        "weight_col": ("WEIGHT", "kg"),
+        "new_col": "bmi"
+    }
     df = calculate_bmi(df, BMI_CONFIG)
-    print("BMI calculated successfully.")
 
     # --- export to csv ---
     df.to_csv(output_path, index = False)

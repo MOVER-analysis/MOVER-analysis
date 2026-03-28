@@ -1,28 +1,4 @@
-# === import libraries === 
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# === global constants ===
-## path to data folder
-DATA_PATH = "data/"
-
-## required columns
-ID_COLS = ["LOG_ID","MRN"]
-OUTCOME_COL = ["hypoxemia"]
-LAB_COLS = ["crp", "co2", "glucose", "hematocrit", "hemoglobin",
-           "leukocytes", "potassium", "sodium", "pH", "lactate"]
-DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
-REQUIRED_COLS = ID_COLS + OUTCOME_COL + LAB_COLS + DEMO_COLS
-
-## expected column groups by type
-EXPECTED_TYPE_COLS = {"string": ["LOG_ID", "MRN"], 
-                      "numeric": LAB_COLS + [col for col in DEMO_COLS if col != "sex"], 
-                      "binary": ["hypoxemia", "sex"]}
-
-## threshold for dropping columns based on missingness proportion
-DROP_THRESHOLD = 0.8
-
+# === functions ===
 def check_duplicate_keys(df: pd.DataFrame, key_cols: list[str]) -> None:
     """
     Checks for duplicated rows based on specified key columns.
@@ -179,6 +155,9 @@ def check_missingness(df: pd.DataFrame, val_dir: str = "validation/", drop_thres
 # === main ===
 def main():
     # --- define file paths ---
+    ## path to data folder
+    DATA_PATH = "data/"
+    
     input_file = "restructured_data.csv"
     output_data_file = "validated_data.csv"
 
@@ -186,14 +165,16 @@ def main():
     output_data_path = DATA_PATH + output_data_file
     output_validation_path = "validation/"
     
-
     # --- read data ---
-    try:
-        df = pd.read_csv(input_path)
-        print(f"Successfully loaded {input_file}.")
-    except FileNotFoundError:
-        print(f"{input_file} not found at {DATA_PATH}")
-        return
+    df = load_data(input_path)
+
+    ## required columns
+    ID_COLS = ["LOG_ID","MRN"]
+    OUTCOME_COL = ["hypoxemia"]
+    LAB_COLS = ["crp", "co2", "glucose", "hematocrit", "hemoglobin",
+                "leukocytes", "potassium", "sodium", "pH", "lactate"]
+    DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
+    REQUIRED_COLS = ID_COLS + OUTCOME_COL + LAB_COLS + DEMO_COLS
 
     ## check duplicate encounter keys
     check_duplicate_keys(df, ID_COLS)
@@ -202,12 +183,20 @@ def main():
     check_required_columns(df, REQUIRED_COLS)
 
     ## check expected data types
+    ### expected column groups by type
+    EXPECTED_TYPE_COLS = {
+        "string": ["LOG_ID", "MRN"], 
+        "numeric": LAB_COLS + [col for col in DEMO_COLS if col != "sex"], 
+        "binary": ["hypoxemia", "sex"]
+    }
     check_expected_column_types(df, EXPECTED_TYPE_COLS)
 
     ## screen for implausible values
     check_implausible_values(df, EXPECTED_TYPE_COLS)
 
     ## miss value checks
+    ## threshold for dropping columns based on missingness proportion
+    DROP_THRESHOLD = 0.5
     df_validated = check_missingness(df, drop_threshold = DROP_THRESHOLD)
 
     # --- export to csv ---

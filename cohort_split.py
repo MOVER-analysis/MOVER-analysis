@@ -1,19 +1,4 @@
-# === import libraries === 
-import pandas as pd
-from sklearn.model_selection import train_test_split
-
-# === global constants ===
-## path to data folder
-DATA_PATH = "data/"
-
-## outcome variable name
-OUTCOME = "hypoxemia"
-
-## seed, sample size and test set proportion for random sampling
-RANDOM_STATE = 42
-NEG_SAMPLE_SIZE = 200
-TEST_PROP = 0.25
-
+# === functions ===
 def case_control_sample(df: pd.DataFrame, 
                         outcome: str, 
                         case_value: object, 
@@ -51,6 +36,9 @@ def case_control_sample(df: pd.DataFrame,
 # === main ===
 def main():
     # --- define file paths ---
+    ## path to data folder
+    DATA_PATH = "data/"
+    
     input_file = "validated_data.csv"
     output_train_file = "hypoxemia_train.csv"
     output_test_file = "hypoxemia_test.csv"
@@ -60,15 +48,16 @@ def main():
     test_path = DATA_PATH + output_test_file
     
     # --- read data ---
-    try:
-        df = pd.read_csv(input_path)
-        print(f"Successfully loaded {input_file}.")
-    except FileNotFoundError:
-        print(f"{input_file} not found at {DATA_PATH}")
-        return
+    df = load_data(input_path)
 
     # --- cohort split ---
     ## case-control sampling
+    ### outcome variable name, seed, sample size and test set proportion for random sampling
+    OUTCOME = "hypoxemia"
+    RANDOM_STATE = 42
+    NEG_SAMPLE_SIZE = 200
+    TEST_PROP = 0.25
+    
     sample = case_control_sample(df, OUTCOME, 1, NEG_SAMPLE_SIZE)
     print(f"Sampled dataset shape: {sample.shape}")
 
