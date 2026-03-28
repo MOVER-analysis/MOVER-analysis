@@ -1,3 +1,5 @@
+import pandas as pd
+
 # === functions ===
 def create_binary_cols(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """

@@ -1,3 +1,7 @@
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+
 # === functions ===
 def check_duplicate_keys(df: pd.DataFrame, key_cols: list[str]) -> None:
     """

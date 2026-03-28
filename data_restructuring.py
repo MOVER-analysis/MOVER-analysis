@@ -1,3 +1,5 @@
+import pandas as pd
+
 # === functions ===
 def pivot_wider(df: pd.DataFrame, 
                 id_cols: list[str] | str, 
