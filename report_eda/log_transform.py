@@ -1,5 +1,6 @@
-# Library
+# Libraries
 import numpy as np
+import pandas as pd
 
 # Function
 def log_transform(df_file_path_list, var_list):
@@ -18,7 +19,11 @@ def log_transform(df_file_path_list, var_list):
     df_dict = {}
     
     for file_path in df_file_path_list:
-        df = load_data(file_path)
+        try:
+            with open(file_path, "r") as f:
+                df = pd.read_csv(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File not found: {file_path}")
         df_dict[file_path] = df
 
     # Looping through the dictionary
