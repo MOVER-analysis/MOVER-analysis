@@ -14,7 +14,7 @@ def main():
         import log_transform
         import analysis
 
-        # Importing library
+        # Importing libraries
         import pandas as pd
         from sklearn.model_selection import train_test_split
 
@@ -543,9 +543,9 @@ def main():
         print("Analysis complete.")
         
         # Printing a message
-        print("––––––––DATA WRANGLING COMPLETE––––––––")
+        print("––––––––PIPELINE COMPLETE––––––––")
     except ModuleNotFoundError as e:
-        print(f"Script not found: {e.name}")
+        print(f"Module not found: {e.name}")
     except FileNotFoundError as e:
         print(f"File not found: {e.filename}")
     except Exception as e:
