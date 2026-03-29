@@ -24,6 +24,12 @@ def create_plots(df, features_dict, outcome_list, output_folder):
 
     # Storing outcome variable information
     outcome_variable_name = outcome_list[0]
+
+    ## Checking for presence of outcome variable in dataset
+    if outcome_variable_name not in df.columns:
+        print(f"Skipping: Outcome variable {outcome_variable_name} not found in data frame.")
+        return
+    
     outcome_0 = outcome_list[1]
     outcome_1 = outcome_list[2]
 
@@ -43,6 +49,11 @@ def create_plots(df, features_dict, outcome_list, output_folder):
 
     # Looping through the desired features
     for var, info in features_dict.items():
+        # Skipping this feature if it is not in the data frame
+        if var not in df.columns:
+            print(f"Skipping {var}: Variable not found in data frame.")
+            continue
+        
         # Storing the plot title depending on the appropriateness of making the
         # variable name lowercase
         title_var = info["name"]
