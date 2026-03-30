@@ -68,7 +68,8 @@ def get_significant_predictors(model, alpha = 0.05):
 
     return significant_predictors
 
-def evaluate_model(model, df, outcome_var, output_folder, output_file_name):
+def evaluate_model(model, df, outcome_var, output_folder, output_file_name,
+                   threshold = 0.5):
     """
     Calculates the test set misclassification error rate for a model
     and saves it in .txt format.
@@ -82,9 +83,9 @@ def evaluate_model(model, df, outcome_var, output_folder, output_file_name):
         print("Cannot evaluate model on the test set due to a lack of predictors.")
         return None
 
-    # Obtaining the predicted outcome values from the model using a
-    # 0.5 threshold
-    predicted_values = (model.predict(df) > 0.5).astype(int)
+    # Obtaining the predicted outcome values from the model using
+    # the threshold (0.5 by default)
+    predicted_values = (model.predict(df) > threshold).astype(int)
 
     # Obtaining the actual values from the test set
     actual_values = df[outcome_var]
