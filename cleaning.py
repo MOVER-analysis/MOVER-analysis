@@ -32,7 +32,7 @@ def validate_col_existence(df: pd.DataFrame, columns: List[str]):
 def pre_process(df: pd.DataFrame, col_mapping: dict) -> pd.DataFrame:
     """
     Pre-process df by 
-    - Selecting and retaining only cols_to_keep
+    - Selecting and retaining only values in col_mapping
     - Dropping rows where either encounter_id or patient_id is null
     - Removing invalid encounter_id values (those correspond to multiple patient_id)
 
