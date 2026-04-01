@@ -205,7 +205,7 @@ def main():
 
         ## Export to csv
         df.to_csv(output_path, index = False)
-        print(f"Feature-engineered data saved to {output_file}.")
+        print(f"Feature-engineered data saved to {output_path}.")
         
         # Data restructuring
         print("––––––––RESTRUCTURING DATA––––––––")
@@ -258,6 +258,7 @@ def main():
         print("Lab tests renamed successfully.")
 
         ### Reshape the data wider
+        ID_COLS = ["LOG_ID", "MRN"]
         df_wide = data_restructuring.pivot_wider(df, ID_COLS, "Lab Name", "Observation Value")
 
         ### Get the names of the new wide-format lab columns
@@ -265,7 +266,6 @@ def main():
 
         ### Keep only required columns that exist in the wide dataframe
         #### Columns to keep in the output dataset
-        ID_COLS = ["LOG_ID", "MRN"]
         OUTCOME_COLS = ["hypoxemia"]
         DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
 
@@ -277,7 +277,7 @@ def main():
 
         ## Export to csv
         df_restructured.to_csv(output_path, index = False)
-        print(f"Restructured data saved to {output_file}.")
+        print(f"Restructured data saved to {output_path}.")
         
         # Data validation
         print("––––––––VALIDATING DATA––––––––")
@@ -326,7 +326,7 @@ def main():
 
         ## Export to csv
         df_validated.to_csv(output_data_path, index=False)
-        print(f"Validated data saved to {output_data_file}.")
+        print(f"Validated data saved to {output_data_path}.")
         
         # Cohort construction and train-test split
         print("––––––––COHORT CONSTRUCTION AND TRAIN-TEST SPLIT––––––––")
@@ -526,8 +526,9 @@ def main():
         ## misclassification error rate for comparison
         output_file_name = "full_model_misclassification_error_rate"
 
+        threshold = 0.5
         analysis.evaluate_model(full_model, test_set, outcome_var,
-                                output_folder, output_file_name)
+                                output_folder, output_file_name, threshold)
 
         ## Printing a message about starting reduced model analysis
         print("––––– Reduced Model –––––")
