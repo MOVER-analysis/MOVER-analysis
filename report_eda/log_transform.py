@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 
 # Function
-def log_transform(df_file_path_list, var_list):
+def log_transform(df_file_path_list: list[str],
+                  var_list: list[str]):
     """
     Log-transforms skewed variable(s) and saves updated datasets in .csv format.
     df_file_path_list has format:
