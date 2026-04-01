@@ -1,0 +1,11 @@
+data:
+    training_set_path: "data/hypoxemia_train.csv"
+    test_set_path: "data/hypoxemia_test.csv"
+    raw_data_path: "raw/"
+    output_data_path: "data/"
+
+output:
+    plots_folder: "plots/"
+    model_folder: "model/"
+    
+    
