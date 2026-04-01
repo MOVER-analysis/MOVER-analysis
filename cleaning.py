@@ -646,151 +646,151 @@ def filter_labs(labs: pd.DataFrame,
 # === For testing ===
 # Delete the following parts after moving everything to main.py
 
-def main():
-    # --- Define file paths ---
-    input_files = ["patient_information.csv", "patient_post_op_complications.csv", "patient_labs.csv"]
-    raw_files = {} # store .csv files into a dictionary
-    output_file = "cleaned_data.csv"
+# def main():
+#     # --- Define file paths ---
+#     input_files = ["patient_information.csv", "patient_post_op_complications.csv", "patient_labs.csv"]
+#     raw_files = {} # store .csv files into a dictionary
+#     output_file = "cleaned_data.csv"
 
-    print("--- Loading data --- ")
+#     print("--- Loading data --- ")
     
-    # --- Load raw data files ---
-    try:
-        for file in input_files:
-            file_path = RAW_DATA_PATH + file
-            print(f"Reading {file_path}...")
+#     # --- Load raw data files ---
+#     try:
+#         for file in input_files:
+#             file_path = RAW_DATA_PATH + file
+#             print(f"Reading {file_path}...")
 
-            # read in .csv
-            df = pd.read_csv(file_path)
+#             # read in .csv
+#             df = pd.read_csv(file_path)
 
-            # store in a dictionary with the key being the file name
-            key = file.replace(".csv", "")
-            raw_files[key] = df
-            print(f"Successfully loaded {file}")
+#             # store in a dictionary with the key being the file name
+#             key = file.replace(".csv", "")
+#             raw_files[key] = df
+#             print(f"Successfully loaded {file}")
             
-    # Raise an error if file not found
-    except FileNotFoundError as e:
-        print(f"\n[Error] A required file is missing: ")
-        print(f"{e}")
-        return
+#     # Raise an error if file not found
+#     except FileNotFoundError as e:
+#         print(f"\n[Error] A required file is missing: ")
+#         print(f"{e}")
+#         return
 
-    # --- Extract dataframes ---
-    postop_raw = raw_files["patient_post_op_complications"]
-    info_raw = raw_files["patient_information"]
-    info_raw.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
-    labs_raw = raw_files["patient_labs"]
+#     # --- Extract dataframes ---
+#     postop_raw = raw_files["patient_post_op_complications"]
+#     info_raw = raw_files["patient_information"]
+#     info_raw.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
+#     labs_raw = raw_files["patient_labs"]
     
-    print("\nAll data ready for processing")
+#     print("\nAll data ready for processing")
 
 
-    # --- Define column mapping configurations ---
+#     # --- Define column mapping configurations ---
 
-    postop_mapping = {"encounter_id": "LOG_ID",
-                      "patient_id": "MRN", 
-                      "response": "SMRTDTA_ELEM_VALUE"}
+#     postop_mapping = {"encounter_id": "LOG_ID",
+#                       "patient_id": "MRN", 
+#                       "response": "SMRTDTA_ELEM_VALUE"}
 
-    info_mapping = {"encounter_id": "LOG_ID", 
-                    "patient_id": "MRN", 
-                    "age": "AGE", 
-                    "height": "HEIGHT", 
-                    "weight": "WEIGHT", 
-                    "sex": "SEX", 
-                    "timestamp": "AN_START_DATETIME"}
+#     info_mapping = {"encounter_id": "LOG_ID", 
+#                     "patient_id": "MRN", 
+#                     "age": "AGE", 
+#                     "height": "HEIGHT", 
+#                     "weight": "WEIGHT", 
+#                     "sex": "SEX", 
+#                     "timestamp": "AN_START_DATETIME"}
 
-    labs_mapping = {"encounter_id": "LOG_ID", 
-                    "patient_id": "MRN", 
-                    "code": "Lab Code",
-                    "name": "Lab Name",
-                    "value": "Observation Value",
-                    "unit": "Measurement Units",
-                    "timestamp": "Collection Datetime"}
+#     labs_mapping = {"encounter_id": "LOG_ID", 
+#                     "patient_id": "MRN", 
+#                     "code": "Lab Code",
+#                     "name": "Lab Name",
+#                     "value": "Observation Value",
+#                     "unit": "Measurement Units",
+#                     "timestamp": "Collection Datetime"}
 
-    # --- Define missing value configurations ---
+#     # --- Define missing value configurations ---
 
-    info_missing_config = {
-        "drop": {"sex": ["Unknown"],
-                 "timestamp": None},
-        "ffill": ["height", "weight"],
-        "lmm_impute": {"height": ["sex", "weight"],
-                       "weight": ["sex", "height"]}
-        }
+#     info_missing_config = {
+#         "drop": {"sex": ["Unknown"],
+#                  "timestamp": None},
+#         "ffill": ["height", "weight"],
+#         "lmm_impute": {"height": ["sex", "weight"],
+#                        "weight": ["sex", "height"]}
+#         }
     
     
 
-    labs_missing_config = {
-        "drop": {"value": [9999999.0],
-                 "timestamp": None}
-        }
+#     labs_missing_config = {
+#         "drop": {"value": [9999999.0],
+#                  "timestamp": None}
+#         }
 
-    # --- Define constants for filtering lab tests ---
+#     # --- Define constants for filtering lab tests ---
 
-    predefined_tests = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
+#     predefined_tests = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
     
-    lab_search_config = {"pH": {"pat": r"\bpH\b", "case": True, "regex": True},
-                         "Lactate": {"exclude": "D-Lactate"}
-                         }
+#     lab_search_config = {"pH": {"pat": r"\bpH\b", "case": True, "regex": True},
+#                          "Lactate": {"exclude": "D-Lactate"}
+#                          }
 
-    # --- Clean datasets ---
+#     # --- Clean datasets ---
 
-    postop = clean_complications(postop = postop_raw,
-                                 col_mapping = postop_mapping)
+#     postop = clean_complications(postop = postop_raw,
+#                                  col_mapping = postop_mapping)
 
-    info = clean_information(info = info_raw,
-                            col_mapping = info_mapping,
-                            date_format = "%m/%d/%y %H:%M",
-                            convert_hw = True,
-                            missing_config = info_missing_config)
+#     info = clean_information(info = info_raw,
+#                             col_mapping = info_mapping,
+#                             date_format = "%m/%d/%y %H:%M",
+#                             convert_hw = True,
+#                             missing_config = info_missing_config)
 
-    labs = clean_labs(labs = labs_raw,
-                      col_mapping = labs_mapping,
-                      date_format = "%Y-%m-%d %H:%M:%S",
-                      missing_config = labs_missing_config)
+#     labs = clean_labs(labs = labs_raw,
+#                       col_mapping = labs_mapping,
+#                       date_format = "%Y-%m-%d %H:%M:%S",
+#                       missing_config = labs_missing_config)
 
-    # --- Filter tests results ---
-    labs_filtered = filter_labs(labs = labs,
-                                col_mapping = labs_mapping,
-                                predefined_tests = predefined_tests,
-                                special_configs = lab_search_config)
+#     # --- Filter tests results ---
+#     labs_filtered = filter_labs(labs = labs,
+#                                 col_mapping = labs_mapping,
+#                                 predefined_tests = predefined_tests,
+#                                 special_configs = lab_search_config)
 
-    # --- Merge logic optimization ---
-    print("Pre-filtering labs to latest result before anesthesia...")
+#     # --- Merge logic optimization ---
+#     print("Pre-filtering labs to latest result before anesthesia...")
     
-    # filter labs
-    timing_info = info[['LOG_ID', 'MRN', 'AN_START_DATETIME']]
-    labs_filtered = labs_filtered.merge(timing_info, on=['LOG_ID', 'MRN'], how='inner')
+#     # filter labs
+#     timing_info = info[['LOG_ID', 'MRN', 'AN_START_DATETIME']]
+#     labs_filtered = labs_filtered.merge(timing_info, on=['LOG_ID', 'MRN'], how='inner')
     
-    # Filter for labs before anesthesia
-    labs_final = labs_filtered[
-        labs_filtered['Collection Datetime'] <= labs_filtered['AN_START_DATETIME']
-    ]
+#     # Filter for labs before anesthesia
+#     labs_final = labs_filtered[
+#         labs_filtered['Collection Datetime'] <= labs_filtered['AN_START_DATETIME']
+#     ]
     
-    # Get latest indices
-    latest_indices = labs_final.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
-    labs_final_subset = labs_final.loc[latest_indices].copy()
+#     # Get latest indices
+#     latest_indices = labs_final.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
+#     labs_final_subset = labs_final.loc[latest_indices].copy()
     
-    # Drop the AN_START_DATETIME from the subset before the final merge 
-    # to avoid AN_START_DATETIME_x / _y
-    labs_final_subset = labs_final_subset.drop(columns=['AN_START_DATETIME'])
+#     # Drop the AN_START_DATETIME from the subset before the final merge 
+#     # to avoid AN_START_DATETIME_x / _y
+#     labs_final_subset = labs_final_subset.drop(columns=['AN_START_DATETIME'])
     
-    # Final Merge
-    print("Performing final merge...")
-    merged_patient_info = postop.merge(info, on=["LOG_ID", "MRN"], how="inner")
+#     # Final Merge
+#     print("Performing final merge...")
+#     merged_patient_info = postop.merge(info, on=["LOG_ID", "MRN"], how="inner")
     
-    # Merging with filtered labs (this will expand the DF to one row per LOG_ID + Lab Test)
-    final_df_filtered = merged_patient_info.merge(labs_final_subset, on=["LOG_ID", "MRN"], how="inner")
+#     # Merging with filtered labs (this will expand the DF to one row per LOG_ID + Lab Test)
+#     final_df_filtered = merged_patient_info.merge(labs_final_subset, on=["LOG_ID", "MRN"], how="inner")
     
-    print(f"Filtering complete. Final Row Count: {len(final_df_filtered)}")
-    # 695752
+#     print(f"Filtering complete. Final Row Count: {len(final_df_filtered)}")
+#     # 695752
 
-    # Export to csv
-    print("--- Export data ---")
-    output_path = OUTPUT_DATA_PATH + output_file
-    final_df_filtered.to_csv(output_path, index = False)
-    print(f"File saved at {output_path}")
+#     # Export to csv
+#     print("--- Export data ---")
+#     output_path = OUTPUT_DATA_PATH + output_file
+#     final_df_filtered.to_csv(output_path, index = False)
+#     print(f"File saved at {output_path}")
 
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
     
    
