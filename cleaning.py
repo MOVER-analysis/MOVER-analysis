@@ -12,8 +12,8 @@ from typing import List, Tuple, Callable, Dict, Any, Optional
 
 # === Global Constants === 
 # Path to data folder
-RAW_DATA_PATH = "raw/"
-OUTPUT_DATA_PATH = "data/"
+# RAW_DATA_PATH = "raw/"
+# OUTPUT_DATA_PATH = "data/"
 
 # === Pre-processing Functions === 
 def validate_col_existence(df: pd.DataFrame, columns: List[str]):
