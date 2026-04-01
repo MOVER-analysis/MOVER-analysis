@@ -3,7 +3,9 @@ import pandas as pd
 import statsmodels.formula.api as smf
 
 # Functions
-def fit_model(training_set, outcome_var, predictor_var_list):
+def fit_model(training_set: pd.DataFrame,
+              outcome_var: str,
+              predictor_var_list: list[str]):
     """
     Fits a logistic regression model on a training set.
     """
@@ -30,7 +32,9 @@ def fit_model(training_set, outcome_var, predictor_var_list):
         print(f"Error fitting model: {e}")
         return None
 
-def save_full_model(model, output_folder, output_file_name):
+def save_full_model(model: statsmodels.discrete.discrete_model.BinaryResults,
+                    output_folder: str,
+                    output_file_name: str):
     """
     Saves the estimated coefficients and Wald test p-values from the full model
     in .csv format.
@@ -51,7 +55,8 @@ def save_full_model(model, output_folder, output_file_name):
     except FileNotFoundError:
         raise FileNotFoundError(f"Folder not found: {output_folder}")
 
-def get_significant_predictors(model, alpha = 0.05):
+def get_significant_predictors(model: statsmodels.discrete.discrete_model.BinaryResults,
+                               alpha: float = 0.05) -> list[str]:
     """
     Returns the predictors that have a p-value less than alpha for the first
     research question.
@@ -68,8 +73,12 @@ def get_significant_predictors(model, alpha = 0.05):
 
     return significant_predictors
 
-def evaluate_model(model, df, outcome_var, output_folder, output_file_name,
-                   threshold = 0.5):
+def evaluate_model(model: statsmodels.discrete.discrete_model.BinaryResults,
+                   df: pd.DataFrame,
+                   outcome_var: str,
+                   output_folder: str,
+                   output_file_name: str,
+                   threshold: float = 0.5):
     """
     Calculates the test set misclassification error rate for a model
     and saves it in .txt format.
