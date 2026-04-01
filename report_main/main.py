@@ -4,15 +4,15 @@ def main():
     # Running the pipeline if the required files and .py scripts are present
     try:
         # Importing other .py scripts
-        import setup
-        import cleaning
-        import feature_engineering
-        import data_restructuring
-        import data_validation
-        import cohort_split
-        import create_plots
-        import log_transform
-        import analysis
+        from supporting_scripts import setup
+        from supporting_scripts import cleaning
+        from supporting_scripts import feature_engineering
+        from supporting_scripts import data_restructuring
+        from supporting_scripts import data_validation
+        from supporting_scripts import cohort_split
+        from supporting_scripts import create_plots
+        from supporting_scripts import log_transform
+        from supporting_scripts import analysis
 
         # Importing libraries
         import pandas as pd
@@ -20,15 +20,12 @@ def main():
 
         # Loading files and storing constants
         config = setup.load_yaml()
-        
-        training_path = config["data"]["training_set_path"]
-        training_set = setup.load_data(training_path)
-
-        test_path = config["data"]["test_set_path"]
-        test_set = setup.load_data(test_path)
 
         RAW_DATA_PATH = config["data"]["raw_data_path"]
         OUTPUT_DATA_PATH = config["data"]["output_data_path"]
+
+        # Creating an output data folder
+        setup.create_output_folder(OUTPUT_DATA_PATH)
         
         # Printing a start message
         print("––––––––STARTING PIPELINE––––––––")
@@ -386,6 +383,13 @@ def main():
 
         print(f"\nSaved train data to {train_path}")
         print(f"Saved test data to {test_path}")
+
+        ## Storing training and test set paths and datasets
+        training_path = config["data"]["training_set_path"]
+        training_set = setup.load_data(training_path)
+
+        test_path = config["data"]["test_set_path"]
+        test_set = setup.load_data(test_path)
         
         # Creating and saving plots
         print("––––––––CREATING AND SAVING PLOTS––––––––")
@@ -545,9 +549,9 @@ def main():
         # Printing a message
         print("––––––––PIPELINE COMPLETE––––––––")
     except ModuleNotFoundError as e:
-        print(f"Module not found: {e.name}")
+        print(f"Module not found: {e}")
     except FileNotFoundError as e:
-        print(f"File not found: {e.filename}")
+        print(f"File not found: {e}")
     except Exception as e:
         print(f"Unexpected error: {e}")
 
