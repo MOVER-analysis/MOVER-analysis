@@ -3,7 +3,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Function
-def create_plots(df, features_dict, outcome_list, output_folder):
+def create_plots(df: pd.DataFrame,
+                 features_dict: dict,
+                 outcome_list: list,
+                 output_folder: str):
     """
     Creates and saves plots.
     features_dict has the following format (only one feature is shown for brevity):
