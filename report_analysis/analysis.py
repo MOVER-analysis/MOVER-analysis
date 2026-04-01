@@ -1,5 +1,6 @@
 # Libraries
 import pandas as pd
+import statsmodels
 import statsmodels.formula.api as smf
 
 # Functions
