@@ -24,11 +24,12 @@ def validate_col_existence(df: pd.DataFrame, columns: List[str]):
     if missing_cols:
         raise KeyError(f"Dataframe is missing the required columns: {missing_cols}")
 
+
 def pre_process(df: pd.DataFrame, 
                 id_cols: List[str], 
                 feature_cols: List[str],
                 timestamp_idx: Optional[List[int]] = None,
-                timestamp_formats: Optional[List[Optional[str]]] = None) -> pd.DataFrame:
+                timestamp_formats: Optional[List[Optional[str]]] = None) -> Tuple[pd.DataFrame, Dict[str, int]]:
     """
     Pre-process df by 
     - Retaining only id_cols and feature_cols
@@ -46,74 +47,63 @@ def pre_process(df: pd.DataFrame,
     - timestamp_idx: the list of indic of the timestamp variable(s) within feature_cols
     - timestamp_format: the list of strftime format (e.g., "%Y-%m-%d %H:%M:%S"), 
                         must match the length of timestamp_idx if provided
-    """
 
-    # --- Validate there's exactly two id columns --- 
-    if len(id_cols)!= 2:
+    Returns:
+        df_cleaned: The processed DataFrame.
+        col_map: {
+            "encounter_id": 0, 
+            "patient_id": 1, 
+            "timestamp": idx, 
+            "original_feature_name": idx, ...
+        }
+    """
+    if len(id_cols) != 2:
         raise ValueError(f"Expected 2 ID columns, got {len(id_cols)}")
 
-    encounter_id = id_cols[0]
-    patient_id = id_cols[1]
-
-    # --- Make sure all columns exist in df ---
+    # Validate existence of all cols
     cols_to_keep = id_cols + feature_cols
     validate_col_existence(df, cols_to_keep)
     
-    # --- Subset df to include only id_cols + feature_cols ---
+    # Subset and drop rows with missing IDs
     df_subset = df[cols_to_keep].copy().reset_index(drop=True)
+    df_subset = df_subset.dropna(subset=id_cols)
 
-    # --- Drop rows with missing or invalid ids --- 
-    df_subset = df_subset.dropna(subset = id_cols)
-
-    # Count unique patients per encounter
-    id_counts = df_subset.groupby(encounter_id)[patient_id].nunique()
-
-    # Find encounters associated with more than one patient id
+    # Remove invalid encounter_ids (1 Enc -> N Patients)
+    enc_col, pat_col = id_cols[0], id_cols[1]
+    id_counts = df_subset.groupby(enc_col)[pat_col].nunique()
     invalid_enc_ids = id_counts[id_counts > 1].index
-    df_cleaned = df_subset[~df_subset[encounter_id].isin(invalid_enc_ids)].reset_index(drop=True)
-    remaining_row = len(df_cleaned)
-    
-    removed_count = len(invalid_enc_ids)
-    print(f"Removed {removed_count} invalid {encounter_id}s.")
-    print(f"{df_cleaned[encounter_id].nunique()} unique {encounter_id}s.")
+    df_cleaned = df_subset[~df_subset[enc_col].isin(invalid_enc_ids)].reset_index(drop=True)
 
-    # --- (Optional) Convert timestamp variables to datetime ---
+    # Cleanup timestamp
     if timestamp_idx is not None:
-        formats = timestamp_formats if timestamp_formats else [None] * len(timestamp_idx)
-        
-        # Sanity check
-        if len(timestamp_idx) != len(formats):
-            raise ValueError("timestamp_indices and timestamp_formats must have the same length.")
-
-        for ts_idx, ts_fmt in zip(timestamp_idx, formats):
-            if ts_idx >= len(feature_cols):
-                raise IndexError(f"timestamp_idx {timestamp_idx} is out of range for feature_cols (length {len(feature_cols)})")
-                
-            # Map the feature_cols index to the df index (shift by 2 for IDs)
-            df_time_idx = ts_idx + len(id_cols)
-            timestamp_name = df_cleaned.columns[df_time_idx]
+        if timestamp_idx >= len(feature_cols):
+            raise IndexError("timestamp_idx out of range for feature_cols.")
             
-            # Convert
-            df_cleaned.iloc[:, df_time_idx] = pd.to_datetime(df_cleaned.iloc[:, df_time_idx],
-                                                             format=ts_fmt,
-                                                             errors='coerce')
+        # Shift index by 2 because IDs are at positions 0 and 1
+        df_ts_idx = timestamp_idx + 2 
+        ts_name = df_cleaned.columns[df_ts_idx]
+        
+        df_cleaned.iloc[:, df_ts_idx] = pd.to_datetime(
+            df_cleaned.iloc[:, df_ts_idx], 
+            format=timestamp_format, 
+            errors='coerce'
+        )
+        df_cleaned = df_cleaned.dropna(subset=[ts_name]).reset_index(drop=True)
 
-            # Drop rows with missing timestamp
-            rows_before_drop = len(df_cleaned)
-            df_cleaned = df_cleaned.dropna(subset=[timestamp_name]).reset_index(drop=True)
-            removed_count = rows_before_drop - len(df_cleaned)
-            print(f"Converted '{timestamp_name}' to datetime. Dropped {removed_count} rows with missing {timestamp_name}")
+    # Standardize col_map
+    col_map = {
+        "encounter_id": 0,
+        "patient_id": 1
+    }
+    if timestamp_idx is not None:
+        col_map["timestamp"] = timestamp_idx + 2
 
-        final_row_count = len(df_cleaned)
-        print(f"Completed pre-processing. {final_row_count} rows remain.")
-
-    # Generate a column index map based on df_cleaned
-    col_map = {name: i for i, name in enumerate(df_cleaned.columns)}
-
-    print(col_map)
+    # Add all other features by their original names
+    for i, col_name in enumerate(df_cleaned.columns):
+        if col_name not in col_map: 
+            col_map[col_name] = i
 
     return df_cleaned, col_map
-
 
 # === Unit Conversion === 
 
@@ -339,38 +329,36 @@ def impute_missing(df: pd.DataFrame,
     return df_imputed.reset_index(drop=True)
 
 # === Filtering lab tests ===
+
 def find_lab_name_code_pair(df: pd.DataFrame,
                             test_list: List[str],
                             subset_map: Dict[str, int],
                             special_configs: Optional[Dict[str, Dict[str, Any]]] = None
                            ) -> pd.DataFrame:
     """
-    Finds the most frequent Name-Code pairs for tests in test_list using a subset_map.
+    Finds the most frequent Name-Code pairs for tests in test_list using 
+    standardized keys in subset_map.
 
     Args:
-        df: The full DataFrame to be processed.
-        test_list: A list of lab test names to search for.
-        subset_map: Minimal col name-to-index map containing at least 'name' and 'code' keys.
-            Example: subset_map:  
+    - df: The full DataFrame to be processed.
+    - test_list: A list of lab test names to search for.
+    - subset_map: subset_map: Minimal col name-to-index map containing at least 'name' and 'code' keys.
+        Example: subset_map:  
             {
                 'name': idxN, 
                 'code': idxC,
                  ...
             }, 
-            where idxN and idxC are the positions of name and code columns in df, respectively.
-        special_configs: Optional dictionary to specify search/regex logic per test.
-
-    Returns:
-        A DataFrame containing the most frequent name/code pairs found for each test.
+    - special_configs: Optional dictionary to specify search/regex logic per test.
     """
     print("Identifying lab name-code pairs...")
 
-    # Get actual col names as they appear in df
+    # Get col names using standardized keys
     try:
         name_col = df.columns[subset_map["name"]]
         code_col = df.columns[subset_map["code"]]
     except (KeyError, IndexError):
-        print(f"Error: 'name' or 'code' keys not found in subset_map/dataframe.")
+        print("Error: 'name' or 'code' keys not found in subset_map.")
         return pd.DataFrame()
 
     special_configs = special_configs or {}
@@ -387,10 +375,11 @@ def find_lab_name_code_pair(df: pd.DataFrame,
         mask = df[name_col].str.contains(search_pat, case=is_case, regex=is_regex, na=False)
         if exclusion:
             mask &= ~df[name_col].str.contains(exclusion, case=False, na=False)
+        
         test_matches = df[mask]
         
-        # Get the most frequent Name-Code combination
         if not test_matches.empty:
+            # Group by Name and Code to find the most frequent pair
             best_pair = test_matches.groupby([name_col, code_col]).size().idxmax()
             
             selected_pairs.append({
@@ -398,15 +387,12 @@ def find_lab_name_code_pair(df: pd.DataFrame,
                 code_col: best_pair[1]
             })
 
-    # 3. Finalize results
     pairs_df = pd.DataFrame(selected_pairs)
-    
     if not pairs_df.empty:
         print(f"Found {len(pairs_df)} matching pairs: {pairs_df}")
-    else:
-        print("No matches found for the provided test list.")
-
+        
     return pairs_df
+    
 
 def filter_labs(df: pd.DataFrame,
                 subset_map: Dict[str, int],
@@ -417,8 +403,8 @@ def filter_labs(df: pd.DataFrame,
     Filters lab DataFrame based on common name-code pairs using a minimal subset map.
     
     Args:
-        df: The full laboratory DataFrame.
-        subset_map: The col name-to-index map of the format 
+    - df: The full laboratory DataFrame.
+    - subset_map: The col name-to-index map of the format 
             {
                 encounter_key: 0, 
                 patient_key: 1, 
@@ -426,25 +412,24 @@ def filter_labs(df: pd.DataFrame,
                 'code': idxC
             }, 
             where idxN and idxC are the positions of name and code columns in df, respectively.
-        predefined_tests: List of logical test names to filter for.
-        special_configs: Optional dictionary to specify search logic.
-        use_common_tests: Whether to include the top 5 most frequent non-predefined tests.
+    - predefined_tests: List of logical test names to filter for.
+    - special_configs: Optional dictionary to specify search logic.
+    - use_common_tests: Whether to include the top 5 most frequent non-predefined tests.
     """
-    # Extract actual col names as they appear in df
-    indices = list(subset_map.values())
-    enc_label = df.columns[indices[0]]
-    pat_label = df.columns[indices[1]]
-    
+    # Get col names using standardized keys
     try:
+        enc_label = df.columns[subset_map["encounter_id"]]
+        pat_label = df.columns[subset_map["patient_id"]]
         name_label = df.columns[subset_map["name"]]
         code_label = df.columns[subset_map["code"]]
-    except KeyError:
-        raise KeyError("subset_map must contain 'name' and 'code' keys.")
+    except KeyError as e:
+        raise KeyError(f"subset_map is missing a required standardized key: {e}")
 
     tests_to_filter = predefined_tests.copy()
     
-    # Add top 5 common tests (excluding those in predefined_tests) if requested
+    # Add top 5 common tests if requested
     if use_common_tests:
+        # Escape predefined tests to build a safe regex pattern for exclusion
         pattern = '|'.join([re.escape(t) for t in predefined_tests])
         is_predefined = df[name_label].str.contains(pattern, case=False, na=False)
         
@@ -454,19 +439,22 @@ def filter_labs(df: pd.DataFrame,
             print(f"Adding top 5 common tests: {top5}")
             tests_to_filter += top5
 
-    # Find Name-Code pairs 
+    # Find name-code pairs
     selected_pairs_df = find_lab_name_code_pair(df=df,
                                                 test_list=tests_to_filter,
                                                 subset_map=subset_map,
                                                 special_configs=special_configs)
 
     if selected_pairs_df.empty:
-        print("Returning original df.")
+        print("No matches found. Returning original DataFrame.")
         return df
 
-    # Filter for selected pairs
+    # Filter
     labs_filtered = df.merge(selected_pairs_df, on=[name_label, code_label], how='inner')
-    
+
+    # Drop duplicated rows
+    labs_filtered = labs_filtered.drop_duplicates()
+    print(f"Filtering complete. Final row count: {len(labs_filtered)}")
     return labs_filtered.reset_index(drop=True)
 
 
