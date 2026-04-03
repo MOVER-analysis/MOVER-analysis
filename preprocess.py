@@ -386,7 +386,8 @@ def find_lab_name_code_pair(df: pd.DataFrame,
 
     pairs_df = pd.DataFrame(selected_pairs)
     if not pairs_df.empty:
-        print(f"Found {len(pairs_df)} matching pairs: {pairs_df}")
+        print(f"Found {len(pairs_df)} matching pairs.")
+        print(pairs_df)
         
     return pairs_df
     
