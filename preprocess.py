@@ -341,39 +341,36 @@ def impute_missing(df: pd.DataFrame,
 # === Filtering lab tests ===
 def find_lab_name_code_pair(df: pd.DataFrame,
                             test_list: List[str],
-                            col_map: Dict[str, int],
-                            name_key: str,
-                            code_key: str,
+                            subset_map: Dict[str, int],
                             special_configs: Optional[Dict[str, Dict[str, Any]]] = None
                            ) -> pd.DataFrame:
     """
-    Finds the most frequent name-code pairs for tests in test_list.
-    Uses col_map to extract actual column names for name_key and code_key as they appear in df.
+    Finds the most frequent Name-Code pairs for tests in test_list using a subset_map.
 
     Args:
-    - df: the DataFrame to be processed
-    - test_list: a list of lab test names to be included in df
-    - col_map: a column name-to-index mapping for df
-    - name_key: The logical key for the Lab Name column in col_map.
-    - code_key: The logical key for the Lab Code column in col_map.
-    - special_configs: Optional dictionary to specify search logic.
-        Example: {
-                    "pH": {"pat": r"\bpH\b", "case": True},
-                    "Lactate": {"pat": "Lactate", "case": False, "exclude": "D-lactate"}
-                }
+        df: The full DataFrame to be processed.
+        test_list: A list of lab test names to search for.
+        subset_map: Minimal col name-to-index map containing at least 'name' and 'code' keys.
+            Example: subset_map:  
+            {
+                'name': idxN, 
+                'code': idxC,
+                 ...
+            }, 
+            where idxN and idxC are the positions of name and code columns in df, respectively.
+        special_configs: Optional dictionary to specify search/regex logic per test.
 
     Returns:
-    A DataFrame containing the most frequent 'name_col' and 'code_col' pair for each test found.
+        A DataFrame containing the most frequent name/code pairs found for each test.
     """
-    # Get actual column names as they appear in df
-    
-    print("Filtering lab tests results...")
-    
+    print("Identifying lab name-code pairs...")
+
+    # Get actual col names as they appear in df
     try:
-        name_col = df.columns[col_map[name_key]]
-        code_col = df.columns[col_map[code_key]]
+        name_col = df.columns[subset_map["name"]]
+        code_col = df.columns[subset_map["code"]]
     except (KeyError, IndexError):
-        print(f"Error: {name_key} or {code_key} not found in col_map/dataframe.")
+        print(f"Error: 'name' or 'code' keys not found in subset_map/dataframe.")
         return pd.DataFrame()
 
     special_configs = special_configs or {}
@@ -386,14 +383,13 @@ def find_lab_name_code_pair(df: pd.DataFrame,
         is_regex = cfg.get("regex", False)
         exclusion = cfg.get("exclude", None)
 
-        # Filter for current test pattern
+        # Create mask for current test pattern
         mask = df[name_col].str.contains(search_pat, case=is_case, regex=is_regex, na=False)
         if exclusion:
             mask &= ~df[name_col].str.contains(exclusion, case=False, na=False)
-
         test_matches = df[mask]
         
-        # Get most common Name-Code combination
+        # Get the most frequent Name-Code combination
         if not test_matches.empty:
             best_pair = test_matches.groupby([name_col, code_col]).size().idxmax()
             
@@ -401,10 +397,77 @@ def find_lab_name_code_pair(df: pd.DataFrame,
                 name_col: best_pair[0],
                 code_col: best_pair[1]
             })
-    pairs_df = pd.DataFrame(selected_pairs)
-    print(f"Selected pairs: {pairs_df}")
 
-    return pd.DataFrame(pairs_df)
+    # 3. Finalize results
+    pairs_df = pd.DataFrame(selected_pairs)
+    
+    if not pairs_df.empty:
+        print(f"Found {len(pairs_df)} matching pairs: {pairs_df}")
+    else:
+        print("No matches found for the provided test list.")
+
+    return pairs_df
+
+def filter_labs(df: pd.DataFrame,
+                subset_map: Dict[str, int],
+                predefined_tests: List[str],
+                special_configs: Optional[Dict[str, Dict[str, Any]]] = None,
+                use_common_tests: bool = True) -> pd.DataFrame:
+    """
+    Filters lab DataFrame based on common name-code pairs using a minimal subset map.
+    
+    Args:
+        df: The full laboratory DataFrame.
+        subset_map: The col name-to-index map of the format 
+            {
+                encounter_key: 0, 
+                patient_key: 1, 
+                'name': idxN, 
+                'code': idxC
+            }, 
+            where idxN and idxC are the positions of name and code columns in df, respectively.
+        predefined_tests: List of logical test names to filter for.
+        special_configs: Optional dictionary to specify search logic.
+        use_common_tests: Whether to include the top 5 most frequent non-predefined tests.
+    """
+    # Extract actual col names as they appear in df
+    indices = list(subset_map.values())
+    enc_label = df.columns[indices[0]]
+    pat_label = df.columns[indices[1]]
+    
+    try:
+        name_label = df.columns[subset_map["name"]]
+        code_label = df.columns[subset_map["code"]]
+    except KeyError:
+        raise KeyError("subset_map must contain 'name' and 'code' keys.")
+
+    tests_to_filter = predefined_tests.copy()
+    
+    # Add top 5 common tests (excluding those in predefined_tests) if requested
+    if use_common_tests:
+        pattern = '|'.join([re.escape(t) for t in predefined_tests])
+        is_predefined = df[name_label].str.contains(pattern, case=False, na=False)
+        
+        other_tests = df[~is_predefined]
+        if not other_tests.empty:
+            top5 = other_tests[name_label].value_counts().head(5).index.tolist()
+            print(f"Adding top 5 common tests: {top5}")
+            tests_to_filter += top5
+
+    # Find Name-Code pairs 
+    selected_pairs_df = find_lab_name_code_pair(df=df,
+                                                test_list=tests_to_filter,
+                                                subset_map=subset_map,
+                                                special_configs=special_configs)
+
+    if selected_pairs_df.empty:
+        print("Returning original df.")
+        return df
+
+    # Filter for selected pairs
+    labs_filtered = df.merge(selected_pairs_df, on=[name_label, code_label], how='inner')
+    
+    return labs_filtered.reset_index(drop=True)
 
 
 # for testing
