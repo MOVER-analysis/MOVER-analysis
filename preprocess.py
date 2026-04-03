@@ -28,8 +28,8 @@ def validate_col_existence(df: pd.DataFrame, columns: List[str]):
 def pre_process(df: pd.DataFrame, 
                 id_cols: List[str], 
                 feature_cols: List[str],
-                timestamp_idx: Optional[List[int]] = None,
-                timestamp_formats: Optional[List[Optional[str]]] = None) -> Tuple[pd.DataFrame, Dict[str, int]]:
+                timestamp_idx: Optional[int] = None,
+                timestamp_format: Optional[str] = None) -> Tuple[pd.DataFrame, Dict[str, int]]:
     """
     Pre-process df by 
     - Retaining only id_cols and feature_cols
@@ -44,9 +44,8 @@ def pre_process(df: pd.DataFrame,
     - features_cols: list of features to be included
 
     Optional Args:
-    - timestamp_idx: the list of indic of the timestamp variable(s) within feature_cols
-    - timestamp_format: the list of strftime format (e.g., "%Y-%m-%d %H:%M:%S"), 
-                        must match the length of timestamp_idx if provided
+    - timestamp_idx: index of the timestamp variable(s) within feature_cols
+    - timestamp_format: strftime format (e.g., "%Y-%m-%d %H:%M:%S")
 
     Returns:
         df_cleaned: The processed DataFrame.
@@ -91,10 +90,8 @@ def pre_process(df: pd.DataFrame,
         df_cleaned = df_cleaned.dropna(subset=[ts_name]).reset_index(drop=True)
 
     # Standardize col_map
-    col_map = {
-        "encounter_id": 0,
-        "patient_id": 1
-    }
+    col_map = {"encounter_id": 0, "patient_id": 1}
+    
     if timestamp_idx is not None:
         col_map["timestamp"] = timestamp_idx + 2
 
@@ -393,7 +390,6 @@ def find_lab_name_code_pair(df: pd.DataFrame,
         
     return pairs_df
     
-
 def filter_labs(df: pd.DataFrame,
                 subset_map: Dict[str, int],
                 predefined_tests: List[str],
