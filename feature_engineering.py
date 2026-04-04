@@ -1,20 +1,37 @@
 import pandas as pd
 
 # === functions ===
-def create_binary_cols(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+def create_binary_cols(df: pd.DataFrame, config: list[dict]) -> pd.DataFrame:
     """
-    Creates binary columns based on specified target values, new column names, and matching rules.
-    Returns df with the new binary columns added.
+    Creates binary columns based on specified target values, new column names,
+    and matching rules. Returns df with the new binary columns added.
 
     config format:
-        {source_column: (target_value, new_column_name, match_type)}
+        [
+            {
+                "source_col": source column name,
+                "new_col": output column name,
+                "target_value": value to match,
+                "match_type": "in" or "exact"
+            },
+            ...
+        ]
 
     match_type:
-        - "in": code as 1 if target value is contained in the source value
-        - "exact": code as 1 if source value exactly matches the target value
+        - "in": code as 1 if target_value is contained in the source value
+        - "exact": code as 1 if source value exactly matches target_value
     """
-    for source_col, (target_value, new_col, match_type) in config.items():
-        target_value = str(target_value).lower()
+    required_keys = {"source_col", "new_col", "target_value", "match_type"}
+
+    for rule in config:
+        missing_keys = required_keys - rule.keys()
+        if missing_keys:
+            raise ValueError(f"Missing keys in config rule: {missing_keys}")
+
+        source_col = rule["source_col"]
+        new_col = rule["new_col"]
+        target_value = str(rule["target_value"]).lower()
+        match_type = rule["match_type"]
 
         if match_type == "in":
             df[new_col] = (
@@ -99,15 +116,30 @@ def main():
     output_path = DATA_PATH + output_file
 
     # --- read data ---
-    df = load_data(input_path)
+    df = setup.load_data(input_path)
 
     # --- feature engineering ---
     ## config for creating binary indicator columns
-    BINARY_COL_CONFIG = {
-        "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia", "in"),
-        "SEX": ("female", "sex", "exact")
-    }
+    raw_outcome = "SMRTDTA_ELEM_VALUE"
+    binary_outcome = "hypoxemia"
+    raw_sex = "SEX"
+    binary_sex = "sex"
+    BINARY_COL_CONFIG = [
+        {
+        "source_col": raw_outcome,
+        "new_col": binary_outcome,
+        "target_value": "hypoxemia",
+        "match_type": "in"
+        },
+        {
+        "source_col": raw_sex,
+        "new_col": binary_sex,
+        "target_value": "female",
+        "match_type": "exact"
+        }
+    ]
     df = create_binary_cols(df, BINARY_COL_CONFIG)
+    df = df.drop_duplicates()
 
     ## config for calculating BMI from height and weight
     BMI_CONFIG = {
