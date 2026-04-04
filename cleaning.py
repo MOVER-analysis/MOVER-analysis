@@ -125,36 +125,57 @@ def main():
     labs_raw = pd.read_csv("raw/patient_labs.csv")
     postop_raw = pd.read_csv("raw/patient_post_op_complications.csv")
 
-    # define cols to keep
-    id_cols = ["LOG_ID", "MRN"]
-    
-    info_features = ["AGE", "HEIGHT", "WEIGHT", "SEX", "AN_START_DATETIME"]
-    info_ts_idx = info_features.index("AN_START_DATETIME")
-    
-    labs_features = ["Lab Code", "Lab Name", "Observation Value", "Measurement Units", "Collection Datetime"]
-    labs_ts_idx = labs_features.index("Collection Datetime")
+    # define constants for variable names
+    encounter_id = "LOG_ID"
+    patient_id = "MRN"
 
-    postop_features = ["SMRTDTA_ELEM_VALUE"]
+    # for information
+    age = "AGE"
+    height = "HEIGHT"
+    weight = "WEIGHT"
+    sex = "SEX"
+    info_ts = "AN_START_DATETIME"
+
+    # for labs
+    lab_code = "Lab Code"
+    lab_name = "Lab Name"
+    value = "Observation Value"
+    unit = "Measurement Units"
+    labs_ts = "Collection Datetime"
+
+    # for complications
+    complications = "SMRTDTA_ELEM_VALUE"
+
+    # define cols to keep
+    id_cols = [encounter_id, patient_id]
+    
+    info_features = [age, height, weight, sex, info_ts]
+    info_ts_idx = info_features.index(info_ts)
+    
+    labs_features = [lab_code, lab_name, value, unit, labs_ts]
+    labs_ts_idx = labs_features.index(labs_ts)
+
+    postop_features = [complications]
 
     # define configurations
     info_impute_config = {
         "ffill": {
-            "HEIGHT": {"timestamp": "AN_START_DATETIME", "group": "MRN"},
-            "WEIGHT": {"timestamp": "AN_START_DATETIME", "group": "MRN"},
+            height: {"timestamp": info_ts, "group": patient_id},
+            weight: {"timestamp": info_ts, "group": patient_id},
         },
         "lmm": {
-            "HEIGHT": {"predictors": ["SEX", "WEIGHT"], "group": "MRN"},
-            "WEIGHT": {"predictors": ["SEX", "HEIGHT"], "group": "MRN"}
+            height: {"predictors": [sex, weight], "group": patient_id},
+            weight: {"predictors": [sex, height], "group": patient_id}
         }
     }
 
     info_drop_config = {
-        "SEX": ["Unknown"],
-        "HEIGHT": None,
-        "WEIGHT": None # dropping remaining NAs in height/weight after imputation
+        sex: ["Unknown"],
+        height: None,
+        weight: None # dropping remaining NAs in height/weight after imputation
     }
     
-    labs_drop_config = {"Observation Value": [9999999.0]}
+    labs_drop_config = {value: [9999999.0]}
     
     predefined_tests = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
     
@@ -184,8 +205,8 @@ def main():
     print("--- Clean patient informations data ---")
     info_clean = clean_df(df=info,
                           col_map=info_map,
-                          height_key="HEIGHT",
-                          weight_key="WEIGHT",
+                          height_key=height,
+                          weight_key=weight,
                           impute_config=info_impute_config,
                           drop_config=info_drop_config)
     
@@ -200,8 +221,8 @@ def main():
                                 info_map=info_map,
                                 labs_df=labs_clean, 
                                 labs_map=labs_map,
-                                name_key="Lab Name", 
-                                code_key="Lab Code",
+                                name_key=lab_name, 
+                                code_key=lab_code,
                                 predefined_tests=predefined_tests,
                                 special_configs=lab_search_config)
 
