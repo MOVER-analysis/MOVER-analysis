@@ -136,12 +136,18 @@ def main():
     sex = "SEX"
     info_ts = "AN_START_DATETIME"
 
-    # for labs
+    # for labs df and lab tests
     lab_code = "Lab Code"
     lab_name = "Lab Name"
     value = "Observation Value"
     unit = "Measurement Units"
     labs_ts = "Collection Datetime"
+
+    leukocytes = "Leukocytes"
+    ph = "pH"
+    hematocrit = "Hematocrit"
+    crp = "C reactive protein"
+    lactate = "Lactate"
 
     # for complications
     complications = "SMRTDTA_ELEM_VALUE"
@@ -176,11 +182,10 @@ def main():
     }
     
     labs_drop_config = {value: [9999999.0]}
-    
-    predefined_tests = ['Leukocytes', 'pH', 'Hematocrit', 'C reactive protein', 'Lactate']
-    
-    lab_search_config = {"pH": {"pat": r"\bpH\b", "case": True, "regex": True},
-                         "Lactate": {"exclude": "D-Lactate"}}
+
+    predefined_tests = [leukocytes, ph, hematocrit, crp, lactate]
+    lab_search_config = {ph: {"pat": r"\bpH\b", "case": True, "regex": True},
+                         lactate: {"exclude": "D-Lactate"}}
 
     # preprocess
     print("--- Pre-processing ---")
