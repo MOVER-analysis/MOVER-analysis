@@ -52,7 +52,7 @@ def save_full_model(model: statsmodels.discrete.discrete_model.BinaryResults,
     # Saving the model results
     try:
         df.to_csv(f"{output_folder}/{output_file_name}.csv", index = False)
-        print(f"Full model results saved to: {output_folder}/{output_file_name}.csv")
+        print(f"Full model results saved to: {output_folder}{output_file_name}.csv")
     except FileNotFoundError:
         raise FileNotFoundError(f"Folder not found: {output_folder}")
 
