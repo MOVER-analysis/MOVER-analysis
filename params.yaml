@@ -9,6 +9,8 @@ data:
         final_data_path: "data/final_data.csv"
 
 output:
+    output_data_path: "data/"
+    validation_data_path: "validation/"
     plots_folder: "plots/"
     model_folder: "model/"
     
