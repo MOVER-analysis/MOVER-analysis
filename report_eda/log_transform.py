@@ -45,3 +45,6 @@ def log_transform(df_file_path_list: list[str],
             print(f"Updated dataset saved to: {file_path}")
         except FileNotFoundError:
             raise FileNotFoundError(f"File path not found: {file_path}")
+
+    # Returning the updated datasets in a dictionary
+    return df_dict
