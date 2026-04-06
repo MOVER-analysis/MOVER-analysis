@@ -1,17 +1,14 @@
 # --- Core Data Manipulation & Math ---
 numpy
 pandas==2.3.3
-scipy==1.15.0
 
 # --- Visualization ---
 matplotlib==3.10.0
 seaborn==0.13.2
-plotly==6.0.0
 
 # --- ML & Modelling ---
 scikit-learn==1.7.0
 statsmodels
-xgboost==2.1.0
 
-# --- Check Missingness ---
-missingno==0.5.2
+# --- Yaml ---
+PyYAML
