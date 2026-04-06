@@ -111,7 +111,7 @@ def evaluate_model(model: statsmodels.discrete.discrete_model.BinaryResults,
             )
             print(
                 f"Test set misclassification error rate "
-                f"saved to: {output_folder}/{output_file_name}.txt"
+                f"saved to: {output_folder}{output_file_name}.txt"
             )
     except FileNotFoundError:
         raise FileNotFoundError(f"Folder not found: {output_folder}")
