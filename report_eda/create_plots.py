@@ -123,7 +123,7 @@ def create_plots(df: pd.DataFrame,
         try:
             plt.savefig(f"{output_folder}/{var}_comparison.png",
                         bbox_inches = "tight")
-            print(f"Plot saved to: {output_folder}/{var}_comparison.png")
+            print(f"Plot saved to: {output_folder}{var}_comparison.png")
         except FileNotFoundError:
             raise FileNotFoundError(f"Folder not found: {output_folder}")
 
