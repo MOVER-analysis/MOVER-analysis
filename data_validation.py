@@ -53,7 +53,7 @@ def check_expected_column_types(df: pd.DataFrame, expected_type_cols: dict[str, 
         else:
             print(f"{col}: NOT numeric, found dtype = {df[col].dtype}")
 
-    print("Checking numeric column types...\n")
+    print("Checking binary column types...\n")
     for col in expected_type_cols.get("binary", []):
         if col not in df.columns:
             print(f"{col}: column not found")
