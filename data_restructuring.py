@@ -6,8 +6,24 @@ def pivot_wider(df: pd.DataFrame,
                 names_from: str, 
                 values_from: str
                ) -> pd.DataFrame:
+    """
+    Reshapes a dataframe from long format to wide format using specified ID columns,
+    column names, and values.
+    
+    Returns a dataframe in wide format with one row per unique ID combination.
+    Arguments:
+        df: input dataframe in long format
+        id_cols: column name or list of column names that uniquely identify each row
+        names_from: column whose unique values will become new column names
+        values_from: column whose values will fill the new wide-format columns
+
+    Returns:
+        A dataframe reshaped to wide format.
+    """
     if isinstance(id_cols, str):
         id_cols = [id_cols]
+
+    print("1")
         
     value_wide = df.pivot(
         index=id_cols,
@@ -15,7 +31,11 @@ def pivot_wider(df: pd.DataFrame,
         values=values_from
     ).reset_index()
 
+    print("2")
+
     df_merged = df.merge(value_wide, on=id_cols, how="left")
+
+    print("3")
 
     df_wide = (
         df_merged
@@ -41,7 +61,7 @@ def main():
     output_path = DATA_PATH + output_file
 
     # --- read data ---
-    df = load_data(input_path)
+    df = setup.load_data(input_path)
 
     # rename selected columns
     ## columns to rename
@@ -81,6 +101,7 @@ def main():
     print("Lab tests renamed successfully.")
 
     # reshape the data wider
+    ID_COLS = ["LOG_ID", "MRN"]
     df_wide = pivot_wider(df, ID_COLS, "Lab Name", "Observation Value")
 
     # get the names of the new wide-format lab columns
@@ -88,7 +109,6 @@ def main():
 
     # keep only required columns that exist in the wide dataframe
     ## columns to keep in the output dataset
-    ID_COLS = ["LOG_ID", "MRN"]
     OUTCOME_COLS = ["hypoxemia"]
     DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
 
