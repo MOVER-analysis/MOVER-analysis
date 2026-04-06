@@ -22,20 +22,15 @@ def pivot_wider(df: pd.DataFrame,
     """
     if isinstance(id_cols, str):
         id_cols = [id_cols]
-
-    print("1")
-        
-    value_wide = df.pivot(
+    
+    df2 = df.groupby(id_cols + [names_from], as_index=False)[values_from].first()    
+    value_wide = df2.pivot(
         index=id_cols,
         columns=names_from,
         values=values_from
     ).reset_index()
 
-    print("2")
-
     df_merged = df.merge(value_wide, on=id_cols, how="left")
-
-    print("3")
 
     df_wide = (
         df_merged
