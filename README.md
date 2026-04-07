@@ -37,7 +37,7 @@ To run the pipeline, follow these steps:
 
 - `patient_post_op_complications.csv`
 
-8. Execute `main.py`. On macOS, this can be done in Terminal immediately after executing the lines in step 5 by executing this line:
+8. Execute `main.py`. On macOS, this can be done in Terminal immediately after executing the line in step 5 by executing this line:
 
 - `python main.py`
 
