@@ -1,0 +1,32 @@
+data:
+    raw_data:
+        raw_info_path: "raw/patient_information.csv"
+        raw_labs_path: "raw/patient_labs.csv"
+        raw_postop_complications_path: "raw/patient_post_op_complications.csv"
+    output_data:
+        training_set_path: "data/hypoxemia_train.csv"
+        test_set_path: "data/hypoxemia_test.csv"
+        final_data_path: "data/final_data.csv"
+    validation:
+        drop_threshold: 0.5
+    case_control_split:
+        random_state: 42
+        outcome_case_value: 1
+        neg_sample_size: 200
+        test_prop: 0.25
+        value_to_replace: 0
+
+model:
+    alpha: 0.05
+    classification_threshold: 0.5
+
+output:
+    output_data_path: "data/"
+    validation_data_path: "validation/"
+    plots_folder: "plots/"
+    model_folder: "model/"
+    full_model_results_file: "full_model_results"
+    full_model_rate_file: "full_model_misclassification_error_rate"
+    reduced_model_rate_file: "reduced_model_misclassification_error_rate"
+    
+    

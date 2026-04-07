@@ -1,0 +1,14 @@
+# --- Core Data Manipulation & Math ---
+numpy
+pandas==2.3.3
+
+# --- Visualization ---
+matplotlib==3.10.0
+seaborn==0.13.2
+
+# --- ML & Modelling ---
+scikit-learn==1.7.0
+statsmodels
+
+# --- Yaml ---
+PyYAML
