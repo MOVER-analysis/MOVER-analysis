@@ -10,7 +10,7 @@ import statsmodels.formula.api as smf
 from typing import List, Tuple, Callable, Dict, Any, Optional
 
 # import preprocessing functions
-import preprocess as prep
+from supporting_scripts import preprocess as prep
 
 # === Data Cleaning ===
 def clean_df(df: pd.DataFrame, 
