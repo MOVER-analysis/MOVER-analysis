@@ -13,5 +13,8 @@ output:
     validation_data_path: "validation/"
     plots_folder: "plots/"
     model_folder: "model/"
+    full_model_results_file: "full_model_results"
+    full_model_rate_file: "full_model_misclassification_error_rate"
+    reduced_model_rate_file: "reduced_model_misclassification_error_rate"
     
     
