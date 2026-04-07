@@ -41,9 +41,9 @@ def main():
         OUTPUT_TRAIN_NAME = config["data"]["output_data"]["training_set_path"]
         OUTPUT_TEST_NAME = config["data"]["output_data"]["test_set_path"]
         
-        OUTPUT_FULL_MODEL_RESULTS_FILE = "full_model_results"
-        OUTPUT_FULL_MODEL_RATE_FILE = "full_model_misclassification_error_rate"
-        OUTPUT_REDUCED_MODEL_RATE_FILE = "reduced_model_misclassification_error_rate"
+        OUTPUT_FULL_MODEL_RESULTS_FILE = config["output"]["full_model_results_file"]
+        OUTPUT_FULL_MODEL_RATE_FILE = config["output"]["full_model_rate_file"]
+        OUTPUT_REDUCED_MODEL_RATE_FILE = config["output"]["reduced_model_rate_file"]
 
         ## Variables
         encounter_id = "LOG_ID"
@@ -58,8 +58,10 @@ def main():
         age_lowercase = True
 
         height = "HEIGHT"
+        height_missing = None
         height_units = "m"
         weight = "WEIGHT"
+        weight_missing = None
         weight_units = "kg"
         bmi = "bmi"
         bmi_type = "continuous"
@@ -68,6 +70,7 @@ def main():
         bmi_lowercase = True
 
         sex = "SEX"
+        sex_missing = ["Unknown"]
         sex_target_value = "female"
         sex_final = "sex"
         sex_type = "categorical"
@@ -145,6 +148,7 @@ def main():
         lab_code = "Lab Code"
         lab_name = "Lab Name"
         value = "Observation Value"
+        value_missing = [9999999.0]
         unit = "Measurement Units"
         labs_ts = "Collection Datetime"
         complications = "SMRTDTA_ELEM_VALUE"
@@ -154,20 +158,20 @@ def main():
         labs_timestamp_format = "%Y-%m-%d %H:%M:%S"
 
         ## Threshold for dropping columns based on missingness proportion
-        drop_threshold = 0.5
+        drop_threshold = config["data"]["validation"]["drop_threshold"]
 
         ## Constants for case-control sampling
-        random_state = 42
-        outcome_case_value = 1
-        neg_sample_size = 200
-        test_prop = 0.25
-        value_to_replace = 0
+        random_state = config["data"]["case_control_split"]["random_state"]
+        outcome_case_value = config["data"]["case_control_split"]["outcome_case_value"]
+        neg_sample_size = config["data"]["case_control_split"]["neg_sample_size"]
+        test_prop = config["data"]["case_control_split"]["test_prop"]
+        value_to_replace = config["data"]["case_control_split"]["value_to_replace"]
 
         ## Level of significance for model results
-        alpha = 0.05
+        alpha = config["model"]["alpha"]
 
         ## Threshold for classification when evaluating the reduced model
-        classification_threshold = 0.5
+        classification_threshold = config["model"]["classification_threshold"]
 
         # Creating output folders
         setup.create_output_folder(OUTPUT_DATA_PATH)
@@ -176,6 +180,7 @@ def main():
         setup.create_output_folder(OUTPUT_MODEL_PATH)
 
         # Loading data files
+        print("Loading raw data...")
         info_raw = setup.load_data(RAW_INFO_NAME)
         labs_raw = setup.load_data(RAW_LABS_NAME)
         postop_raw = setup.load_data(RAW_POSTOP_NAME)
@@ -210,12 +215,13 @@ def main():
         }
 
         info_drop_config = {
-            sex: ["Unknown"],
-            height: None,
-            weight: None # dropping remaining NAs in height/weight after imputation
+            sex: sex_missing,
+            height: height_missing,
+            weight: weight_missing
+            # dropping remaining NAs in height/weight after imputation
         }
 
-        labs_drop_config = {value: [9999999.0]}
+        labs_drop_config = {value: value_missing}
 
         predefined_tests = [leukocytes, ph, hematocrit, crp, lactate]
         lab_search_config = {ph: {"pat": r"\bpH\b", "case": True, "regex": True},
@@ -521,8 +527,8 @@ def main():
 
         print("Creating and saving plots complete.")
 
-        # Log-transforming variables
-        print("––––––––LOG-TRANSFORMING VARIABLES––––––––")
+        # Log-transforming skewed variables
+        print("––––––––LOG-TRANSFORMING SKEWED VARIABLES––––––––")
 
         ## Setting up df_file_path_list and var_list for log-transformation
         df_file_path_list = [OUTPUT_TRAIN_NAME, OUTPUT_TEST_NAME]
