@@ -7,6 +7,16 @@ data:
         training_set_path: "data/hypoxemia_train.csv"
         test_set_path: "data/hypoxemia_test.csv"
         final_data_path: "data/final_data.csv"
+    case_control_split:
+        random_state: 42
+        outcome_case_value: 1
+        neg_sample_size: 200
+        test_prop: 0.25
+        value_to_replace: 0
+
+model:
+    alpha: 0.05
+    classification_threshold: 0.5
 
 output:
     output_data_path: "data/"
