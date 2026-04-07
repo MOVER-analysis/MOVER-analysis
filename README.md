@@ -47,3 +47,7 @@ After `main.py` finishes running and `"––––––––PIPELINE COMPLETE
 2. `model`, containing the results from the full model (`full_model_results.csv`), the misclassification error rate on the test set for the full model (`full_model_misclassification_error_rate.txt`), and the misclassification error rate on the test set for the reduced model (`reduced_model_misclassification_error_rate.txt`)
 3. `plots`, containing `.png` files comparing the distributions of variables by outcome group
 4. `validation`, containing data validation-related images and tables
+
+## Generative AI
+
+Generative AI (ChatGPT) was used by Yang Lei to help refine and organize the structure of code. Generative AI tools were not used by Benny Rochwerg. Generative AI (Gemini) was used by Yunfei Yu to debug code and refine writing.
