@@ -15,7 +15,7 @@ To run the pipeline, follow these steps:
 
 - `conda activate MOVER`
 
-4. Clone this repository. On macOS, this can be done in Terminal by navigating to a particular folder of your choosing and executing these two lines:
+4. Clone this repository. On macOS, this can be done in Terminal immediately after executing the lines in step 3 by executing these two lines:
 
 - `git clone https://github.com/MOVER-analysis/MOVER-analysis.git`
 
