@@ -7,6 +7,8 @@ data:
         training_set_path: "data/hypoxemia_train.csv"
         test_set_path: "data/hypoxemia_test.csv"
         final_data_path: "data/final_data.csv"
+    engineering:
+        drop_threshold: 0.5
     case_control_split:
         random_state: 42
         outcome_case_value: 1
