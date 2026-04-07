@@ -15,16 +15,16 @@ To run the pipeline, follow these steps:
 
 - `conda activate MOVER`
 
-4. Install the packages in `requirements.txt`. On macOS, this can be done in Terminal immediately after executing the lines in step 3 by executing this line:
-
-- `pip install -r requirements.txt`
-
-5. Clone this repository. On macOS, this can be done in Terminal by navigating to a particular folder of your choosing and executing these two lines:
+4. Clone this repository. On macOS, this can be done in Terminal by navigating to a particular folder of your choosing and executing these two lines:
 
 - `git clone https://github.com/MOVER-analysis/MOVER-analysis.git`
 
 
 - `cd MOVER-analysis`
+
+5. Install the packages in `requirements.txt`. On macOS, this can be done in Terminal immediately after executing the lines in step 4 by executing this line:
+
+- `pip install -r requirements.txt`
 
 6. Create a folder in the same directory as `main.py` named `raw`.
 7. Inside the `raw` folder, ensure the following three MOVER EPIC data tables from 2017-2022 are present:
