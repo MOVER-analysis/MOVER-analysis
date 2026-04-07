@@ -303,6 +303,11 @@ def main():
             }
         ]
         df = feature_engineering.create_binary_cols(df, BINARY_COL_CONFIG)
+
+        ## Keeping only rows with hypoxemia = 1 for encounters with multiple complications that have
+        ## multiple rows that include both hypoxemia = 1 and hypoxemia = 0 with all other variables the same
+        has_hypoxemia = df.groupby(id_cols)[outcome].transform("max")
+        df = df[~((df[outcome] == 0) & (has_hypoxemia == 1))].copy()
         df = df.drop(columns=[complications])
         df = df.drop_duplicates()
 
@@ -606,10 +611,8 @@ def main():
         
         print("––––––––PIPELINE COMPLETE––––––––")
         
-    except ModuleNotFoundError as e:
-        print(f"Module not found: {e}")
     except FileNotFoundError as e:
-        print(f"File not found: {e}")
+        print(f"{e}")
     except Exception as e:
         print(f"Unexpected error: {e}")
 
