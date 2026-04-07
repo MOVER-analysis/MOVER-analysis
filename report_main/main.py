@@ -1,10 +1,11 @@
 # Function
 def main():
-    
+
     # Running the pipeline if the required files and .py scripts are present
     try:
         # Importing other .py scripts
         from supporting_scripts import setup
+        from supporting_scripts import preprocess
         from supporting_scripts import cleaning
         from supporting_scripts import feature_engineering
         from supporting_scripts import data_restructuring
@@ -17,538 +18,588 @@ def main():
         # Importing libraries
         import pandas as pd
         from sklearn.model_selection import train_test_split
-
-        # Loading files and storing constants
-        config = setup.load_yaml()
-
-        RAW_DATA_PATH = config["data"]["raw_data_path"]
-        OUTPUT_DATA_PATH = config["data"]["output_data_path"]
-
-        # Creating an output data folder
-        setup.create_output_folder(OUTPUT_DATA_PATH)
         
         # Printing a start message
         print("––––––––STARTING PIPELINE––––––––")
+
+        # Loading configuration file
+        config = setup.load_yaml()
+
+        # Storing constants
+
+        ## Files
+        RAW_INFO_NAME = config["data"]["raw_data"]["raw_info_path"]
+        RAW_LABS_NAME = config["data"]["raw_data"]["raw_labs_path"]
+        RAW_POSTOP_NAME = config["data"]["raw_data"]["raw_postop_complications_path"]
+
+        OUTPUT_DATA_PATH = config["output"]["output_data_path"]
+        OUTPUT_VALIDATION_PATH = config["output"]["validation_data_path"]
+        OUTPUT_PLOTS_PATH = config["output"]["plots_folder"]
+        OUTPUT_MODEL_PATH = config["output"]["model_folder"]
+        
+        OUTPUT_DATA_NAME = config["data"]["output_data"]["final_data_path"]
+        OUTPUT_TRAIN_NAME = config["data"]["output_data"]["training_set_path"]
+        OUTPUT_TEST_NAME = config["data"]["output_data"]["test_set_path"]
+        
+        OUTPUT_FULL_MODEL_RESULTS_FILE = "full_model_results"
+        OUTPUT_FULL_MODEL_RATE_FILE = "full_model_misclassification_error_rate"
+        OUTPUT_REDUCED_MODEL_RATE_FILE = "reduced_model_misclassification_error_rate"
+
+        ## Variables
+        encounter_id = "LOG_ID"
+        patient_id = "MRN"
+        
+        age = "AGE"
+        age_original = "BIRTH_DATE"
+        age_final = "age"
+        age_type = "continuous"
+        age_name = "Age"
+        age_units = "years"
+        age_lowercase = True
+
+        height = "HEIGHT"
+        height_units = "m"
+        weight = "WEIGHT"
+        weight_units = "kg"
+        bmi = "bmi"
+        bmi_type = "continuous"
+        bmi_name = "Body mass index"
+        bmi_units = "kg/m^2"
+        bmi_lowercase = True
+
+        sex = "SEX"
+        sex_target_value = "female"
+        sex_final = "sex"
+        sex_type = "categorical"
+        sex_name = "Sex"
+        sex_units = ""
+        sex_lowercase = True
+        sex_bar_colours = ["blue", "red"]
+        sex_xangle = 45
+        sex_class_names = {0: "Male", 1: "Female"}
+
+        leukocytes = "Leukocytes"
+        leukocytes_alt = "Leukocytes^^corrected for nucleated erythrocytes"
+        leukocytes_final = "leukocytes"
+        leukocytes_type = "continuous"
+        leukocytes_name = "Leukocytes"
+        leukocytes_units = "THOUS/MCL"
+        leukocytes_lowercase = True
+
+        ph = "pH"
+        ph_final = "ph"
+
+        hematocrit = "Hematocrit"
+        hematocrit_final = "hematocrit"
+        hematocrit_type = "continuous"
+        hematocrit_name = "Hematocrit"
+        hematocrit_units = "%"
+        hematocrit_lowercase = True
+
+        crp = "C reactive protein"
+        crp_final = "crp"
+
+        lactate = "Lactate"
+        lactate_final = "lactate"
+
+        co2 = "Carbon dioxide"
+        co2_final = "co2"
+        co2_type = "continuous"
+        co2_name = "Carbon dioxide"
+        co2_units = "mmol/L"
+        co2_lowercase = True
+
+        glucose = "Glucose"
+        glucose_final = "glucose"
+        glucose_type = "continuous"
+        glucose_name = "Glucose"
+        glucose_units = "mg/dL"
+        glucose_lowercase = True
+
+        hemoglobin = "Hemoglobin"
+        hemoglobin_final = "hemoglobin"
+        hemoglobin_type = "continuous"
+        hemoglobin_name = "Hemoglobin"
+        hemoglobin_units = "G/DL"
+        hemoglobin_lowercase = True
+
+        potassium = "Potassium"
+        potassium_final = "potassium"
+        potassium_type = "continuous"
+        potassium_name = "Potassium"
+        potassium_units = "mmol/L"
+        potassium_lowercase = True
+
+        sodium = "Sodium"
+        sodium_final = "sodium"
+        sodium_type = "continuous"
+        sodium_name = "Sodium"
+        sodium_units = "mmol/L"
+        sodium_lowercase = True
+
+        outcome = "hypoxemia"
+        outcome_class_0_name = "Non-Hypoxemia"
+        outcome_class_1_name = "Hypoxemia"
+
+        info_ts = "AN_START_DATETIME"
+        lab_code = "Lab Code"
+        lab_name = "Lab Name"
+        value = "Observation Value"
+        unit = "Measurement Units"
+        labs_ts = "Collection Datetime"
+        complications = "SMRTDTA_ELEM_VALUE"
+
+        ## Timestamp formats
+        info_timestamp_format = "%m/%d/%y %H:%M"
+        labs_timestamp_format = "%Y-%m-%d %H:%M:%S"
+
+        ## Threshold for dropping columns based on missingness proportion
+        drop_threshold = 0.5
+
+        ## Constants for case-control sampling
+        random_state = 42
+        outcome_case_value = 1
+        neg_sample_size = 200
+        test_prop = 0.25
+        value_to_replace = 0
+
+        ## Level of significance for model results
+        alpha = 0.05
+
+        ## Threshold for classification when evaluating the reduced model
+        classification_threshold = 0.5
+
+        # Creating output folders
+        setup.create_output_folder(OUTPUT_DATA_PATH)
+        setup.create_output_folder(OUTPUT_VALIDATION_PATH)
+        setup.create_output_folder(OUTPUT_PLOTS_PATH)
+        setup.create_output_folder(OUTPUT_MODEL_PATH)
+
+        # Loading data files
+        info_raw = setup.load_data(RAW_INFO_NAME)
+        labs_raw = setup.load_data(RAW_LABS_NAME)
+        postop_raw = setup.load_data(RAW_POSTOP_NAME)
+
+        # Preprocessing
+        print("––––––––PREPROCESSING DATA––––––––")
+
+        ## Renaming a column for clarity
+        info_raw.rename(columns = {age_original: age}, inplace = True)
+
+        ## Defining columns to keep
+        id_cols = [encounter_id, patient_id]
+
+        info_features = [age, height, weight, sex, info_ts]
+        info_ts_idx = info_features.index(info_ts)
+
+        labs_features = [lab_code, lab_name, value, unit, labs_ts]
+        labs_ts_idx = labs_features.index(labs_ts)
+
+        postop_features = [complications]
+
+        ## Defining configurations
+        info_impute_config = {
+            "ffill": {
+                height: {"timestamp": info_ts, "group": patient_id},
+                weight: {"timestamp": info_ts, "group": patient_id},
+            },
+            "lmm": {
+                height: {"predictors": [sex, weight], "group": patient_id},
+                weight: {"predictors": [sex, height], "group": patient_id}
+            }
+        }
+
+        info_drop_config = {
+            sex: ["Unknown"],
+            height: None,
+            weight: None # dropping remaining NAs in height/weight after imputation
+        }
+
+        labs_drop_config = {value: [9999999.0]}
+
+        predefined_tests = [leukocytes, ph, hematocrit, crp, lactate]
+        lab_search_config = {ph: {"pat": r"\bpH\b", "case": True, "regex": True},
+                             lactate: {"exclude": "D-Lactate"}}
+
+        ## Preprocessing
+        print("Preprocessing information data...")
+        info, info_map = preprocess.pre_process(df=info_raw,
+                                                id_cols=id_cols,
+                                                feature_cols=info_features,
+                                                timestamp_idx=info_ts_idx,
+                                                timestamp_format=info_timestamp_format)
+
+        print("Preprocessing laboratory data...")
+        labs, labs_map = preprocess.pre_process(df=labs_raw,
+                                                id_cols=id_cols,
+                                                feature_cols=labs_features,
+                                                timestamp_idx=labs_ts_idx,
+                                                timestamp_format=labs_timestamp_format)
+
+        print("Preprocessing postoperative complications data...")
+        postop, postop_map = preprocess.pre_process(df=postop_raw,
+                                                    id_cols=id_cols,
+                                                    feature_cols=postop_features)
+
+        print("Preprocessing complete.")
         
         # Cleaning
         print("––––––––CLEANING DATA––––––––")
 
-        ## Defining file paths
-        input_files = ["patient_information.csv",
-                       "patient_post_op_complications.csv",
-                       "patient_labs.csv"]
+        ## Cleaning
+        print("Cleaning information data...")
+        info_clean = cleaning.clean_df(df=info,
+                                       col_map=info_map,
+                                       height_key=height,
+                                       weight_key=weight,
+                                       impute_config=info_impute_config,
+                                       drop_config=info_drop_config)
 
-        raw_files = {} # store .csv files into a dictionary
+        print("Cleaning laboratory data...")
+        labs_clean = cleaning.clean_df(df=labs,
+                                       col_map=labs_map,
+                                       drop_config=labs_drop_config)
 
-        output_file = "cleaned_data.csv"
+        ## Merging and filtering laboratory tests
+        print("Filtering laboratory tests...")
+        info_labs = cleaning.merge_info_labs(info_df=info_clean,
+                                             info_map=info_map,
+                                             labs_df=labs_clean,
+                                             labs_map=labs_map,
+                                             name_key=lab_name,
+                                             code_key=lab_code,
+                                             predefined_tests=predefined_tests,
+                                             special_configs=lab_search_config)
 
-        print("--- Loading data --- ")
+        ## Merging with postoperative complications
+        print("Merging with complications data...")
+        df = postop.merge(info_labs, on=id_cols, how="inner")
+        df = df.drop_duplicates().reset_index(drop=True)
 
-        ## Loading raw data files
-        try:
-            for file in input_files:
-                file_path = RAW_DATA_PATH + file
-                print(f"Reading {file_path}...")
-                
-                # read in .csv
-                df = pd.read_csv(file_path)
+        print(f"Cleaning complete. Final row count: {len(df)}")
 
-                # store in a dictionary with the key being the file name
-                key = file.replace(".csv", "")
-                raw_files[key] = df
-                print(f"Successfully loaded {file}")
-            
-        ## Raising an error if file not found
-        except FileNotFoundError as e:
-            print(f"\n[Error] A required file is missing: ")
-            print(f"{e}")
-            return
-
-        ## Extracting dataframes
-        postop_raw = raw_files["patient_post_op_complications"]
-        info_raw = raw_files["patient_information"]
-        info_raw.rename(columns = {"BIRTH_DATE": "AGE"}, inplace = True)
-        labs_raw = raw_files["patient_labs"]
-
-        print("\nAll data ready for processing")
-
-        ## Defining column mapping configurations
-        postop_mapping = {"encounter_id": "LOG_ID",
-                          "patient_id": "MRN",
-                          "response": "SMRTDTA_ELEM_VALUE"}
-
-        info_mapping = {"encounter_id": "LOG_ID",
-                        "patient_id": "MRN",
-                        "age": "AGE",
-                        "height": "HEIGHT",
-                        "weight": "WEIGHT",
-                        "sex": "SEX",
-                        "timestamp": "AN_START_DATETIME"}
-
-        labs_mapping = {"encounter_id": "LOG_ID",
-                        "patient_id": "MRN",
-                        "code": "Lab Code",
-                        "name": "Lab Name",
-                        "value": "Observation Value",
-                        "unit": "Measurement Units",
-                        "timestamp": "Collection Datetime"}
-
-        ## Defining missing value configurations
-        info_missing_config = {
-            "drop": {"sex": ["Unknown"],
-                     "timestamp": None},
-            "ffill": ["height", "weight"],
-            "lmm_impute": {"height": ["sex", "weight"],
-                           "weight": ["sex", "height"]}
-            }
-
-        labs_missing_config = {
-            "drop": {"value": [9999999.0],
-                     "timestamp": None}
-            }
-
-        ## Defining constants for filtering lab tests
-        predefined_tests = ['Leukocytes', 'pH', 'Hematocrit',
-                            'C reactive protein', 'Lactate']
-    
-        lab_search_config = {"pH": {"pat": r"\bpH\b", "case": True, "regex": True},
-                             "Lactate": {"exclude": "D-Lactate"}
-                             }
-
-        ## Cleaning datasets
-        postop = cleaning.clean_complications(postop = postop_raw,
-                                              col_mapping = postop_mapping)
-
-        info = cleaning.clean_information(info = info_raw,
-                                          col_mapping = info_mapping,
-                                          date_format = "%m/%d/%y %H:%M",
-                                          convert_hw = True,
-                                          missing_config = info_missing_config)
-
-        labs = cleaning.clean_labs(labs = labs_raw,
-                                   col_mapping = labs_mapping,
-                                   date_format = "%Y-%m-%d %H:%M:%S",
-                                   missing_config = labs_missing_config)
-
-        ## Filtering test results
-        labs_filtered = cleaning.filter_labs(labs = labs,
-                                             col_mapping = labs_mapping,
-                                             predefined_tests = predefined_tests,
-                                             special_configs = lab_search_config)
-
-        ## Merge logic optimization
-        print("Pre-filtering labs to latest result before anesthesia...")
-
-        ### Filter labs
-        timing_info = info[['LOG_ID', 'MRN', 'AN_START_DATETIME']]
-        labs_filtered = labs_filtered.merge(timing_info,
-                                            on=['LOG_ID', 'MRN'],
-                                            how='inner')
-
-        ### Filter for labs before anesthesia
-        labs_final = labs_filtered[
-            labs_filtered['Collection Datetime'] <= labs_filtered['AN_START_DATETIME']
-        ]
-
-        ### Get latest indices
-        latest_indices = labs_final.groupby(['LOG_ID', 'MRN', 'Lab Name'])['Collection Datetime'].idxmax()
-        labs_final_subset = labs_final.loc[latest_indices].copy()
-
-        ### Drop the AN_START_DATETIME from the subset before the final merge
-        ### to avoid AN_START_DATETIME_x / _y
-        labs_final_subset = labs_final_subset.drop(columns=['AN_START_DATETIME'])
-
-        ### Final merge
-        print("Performing final merge...")
-        merged_patient_info = postop.merge(info, on=["LOG_ID", "MRN"], how="inner")
-
-        ### Merging with filtered labs (this will expand the DF to one row per LOG_ID + Lab Test)
-        final_df_filtered = merged_patient_info.merge(labs_final_subset, on=["LOG_ID", "MRN"], how="inner")
-
-        print(f"Filtering complete. Final Row Count: {len(final_df_filtered)}")
-        ### 695752
-
-        ## Export to csv
-        print("--- Export data ---")
-        output_path = OUTPUT_DATA_PATH + output_file
-        final_df_filtered.to_csv(output_path, index = False)
-        print(f"File saved at {output_path}")
-        
         # Feature engineering
-        print("––––––––PERFORMING FEATURE ENGINEERING––––––––")
+        print("––––––––FEATURE ENGINEERING––––––––")
 
-        ## Define file paths
-        input_file = "cleaned_data.csv"
-        output_file = "feature_engineered_data.csv"
-
-        input_path = OUTPUT_DATA_PATH + input_file
-        output_path = OUTPUT_DATA_PATH + output_file
-
-        ## Read data
-        df = setup.load_data(input_path)
-
-        ## Feature engineering
-        ### Config for creating binary indicator columns
-        BINARY_COL_CONFIG = {
-            "SMRTDTA_ELEM_VALUE": ("hypoxemia", "hypoxemia", "in"),
-            "SEX": ("female", "sex", "exact")
-        }
+        ## Configuration for creating binary indicator columns
+        BINARY_COL_CONFIG = [
+            {
+                "source_col": complications,
+                "new_col": outcome,
+                "target_value": outcome,
+                "match_type": "in"
+            },
+            {
+                "source_col": sex,
+                "new_col": sex,
+                "target_value": sex_target_value,
+                "match_type": "exact"
+            }
+        ]
         df = feature_engineering.create_binary_cols(df, BINARY_COL_CONFIG)
+        df = df.drop(columns=[complications])
+        df = df.drop_duplicates()
 
-        ### Config for calculating BMI from height and weight
+        ## Configuration for calculating BMI from height and weight
         BMI_CONFIG = {
-            "height_col": ("HEIGHT", "m"),
-            "weight_col": ("WEIGHT", "kg"),
-            "new_col": "bmi"
+            "height_col": (height, height_units),
+            "weight_col": (weight, weight_units),
+            "new_col": bmi
         }
         df = feature_engineering.calculate_bmi(df, BMI_CONFIG)
 
-        ## Export to csv
-        df.to_csv(output_path, index = False)
-        print(f"Feature-engineered data saved to {output_path}.")
-        
+        print("Feature engineering complete.")
+
         # Data restructuring
-        print("––––––––RESTRUCTURING DATA––––––––")
+        print("––––––––DATA RESTRUCTURING––––––––")
 
-        ## Define file paths
-        input_file = "feature_engineered_data.csv"
-        output_file = "restructured_data.csv"
+        ## Defining constants
+        drop_cols = [lab_code, unit, labs_ts]
+        outcome_cols = [outcome]
+        demo_cols = [age, sex, bmi]
 
-        input_path = OUTPUT_DATA_PATH + input_file
-        output_path = OUTPUT_DATA_PATH + output_file
-
-        ## Read data
-        df = setup.load_data(input_path)
-
-        ### Rename selected columns
-        #### Columns to rename
-        COL_NAME_MAP = {
-            "AGE": "age",
-            "HEIGHT": "height",
-            "WEIGHT": "weight"
+        ## Renaming selected columns
+        col_name_map = {
+            age: age_final,
+            sex: sex_final,
+            bmi: bmi
         }
-        df = df.rename(columns=COL_NAME_MAP)
+        drop_cols = [col_name_map.get(item, item) for item in drop_cols]
+        outcome_cols = [col_name_map.get(item, item) for item in outcome_cols]
+        demo_cols = [col_name_map.get(item, item) for item in demo_cols]
+        df = df.rename(columns=col_name_map)
         print("Selected columns renamed successfully.")
 
-        ## Data restructuring
-        ### Drop long-format columns before pivoting
-        #### Columns to drop before reshaping data
-        DROP_COLS = [
-            "Lab Code",
-            "Measurement Units",
-            "Collection Datetime"
-        ]
-        df = df.drop(columns=DROP_COLS, errors="ignore")
+        ## Dropping long-format columns before pivoting
+        df = df.drop(columns=drop_cols, errors="ignore")
 
-        ### Rename lab tests
-        #### Lab name mapping
-        LAB_NAME_MAP = {
-            "C reactive protein": "crp",
-            "Carbon dioxide": "co2",
-            "Glucose": "glucose",
-            "Hematocrit": "hematocrit",
-            "Hemoglobin": "hemoglobin",
-            "Leukocytes^^corrected for nucleated erythrocytes": "leukocytes",
-            "Potassium": "potassium",
-            "Sodium": "sodium",
-            "pH": "pH",
-            "Lactate": "lactate"
+        ## Renaming lab tests
+        lab_name_map = {
+            crp: crp_final,
+            co2: co2_final,
+            glucose: glucose_final,
+            hematocrit: hematocrit_final,
+            hemoglobin: hemoglobin_final,
+            leukocytes_alt: leukocytes_final,
+            potassium: potassium_final,
+            sodium: sodium_final,
+            ph: ph_final,
+            lactate: lactate_final
         }
-        df["Lab Name"] = df["Lab Name"].map(LAB_NAME_MAP)
-        print("Lab tests renamed successfully.")
+        df[lab_name] = df[lab_name].map(lab_name_map)
+        print("Laboratory tests renamed successfully.")
 
-        ### Reshape the data wider
-        ID_COLS = ["LOG_ID", "MRN"]
-        df_wide = data_restructuring.pivot_wider(df, ID_COLS, "Lab Name", "Observation Value")
+        ## Reshaping the data wider
+        df_wide = data_restructuring.pivot_wider(df, id_cols, lab_name, value)
 
-        ### Get the names of the new wide-format lab columns
-        wide_cols = df["Lab Name"].dropna().unique().tolist()
+        ## Getting the names of the new wide-format lab columns
+        lab_cols = df[lab_name].dropna().unique().tolist()
 
-        ### Keep only required columns that exist in the wide dataframe
-        #### Columns to keep in the output dataset
-        OUTCOME_COLS = ["hypoxemia"]
-        DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
-
-        keep_cols = ID_COLS + OUTCOME_COLS + wide_cols + DEMO_COLS
+        ## Keeping only required columns that exist in the wide dataframe
+        keep_cols = id_cols + outcome_cols + lab_cols + demo_cols
         keep_cols = [col for col in keep_cols if col in df_wide.columns]
         print("Final columns selected successfully.")
 
-        df_restructured = df_wide[keep_cols]
+        df = df_wide[keep_cols]
 
-        ## Export to csv
-        df_restructured.to_csv(output_path, index = False)
-        print(f"Restructured data saved to {output_path}.")
-        
+        print("Data restructuring complete.")
+
         # Data validation
-        print("––––––––VALIDATING DATA––––––––")
+        print("––––––––DATA VALIDATION––––––––")
 
-        ## Define file paths
-        input_file = "restructured_data.csv"
-        output_data_file = "validated_data.csv"
+        ## Defining required columns
+        required_cols = keep_cols
 
-        input_path = OUTPUT_DATA_PATH + input_file
-        output_data_path = OUTPUT_DATA_PATH + output_data_file
-        output_validation_path = "validation/"
+        ## Checking duplicate encounter keys
+        data_validation.check_duplicate_keys(df, id_cols)
 
-        ## Read data
-        df = setup.load_data(input_path)
+        ## Verifying required columns are present
+        data_validation.check_required_columns(df, required_cols)
 
-        ### Required columns
-        ID_COLS = ["LOG_ID","MRN"]
-        OUTCOME_COL = ["hypoxemia"]
-        LAB_COLS = ["crp", "co2", "glucose", "hematocrit", "hemoglobin",
-                    "leukocytes", "potassium", "sodium", "pH", "lactate"]
-        DEMO_COLS = ["age", "sex", "bmi", "height", "weight"]
-        REQUIRED_COLS = ID_COLS + OUTCOME_COL + LAB_COLS + DEMO_COLS
-
-        ### Check duplicate encounter keys
-        data_validation.check_duplicate_keys(df, ID_COLS)
-
-        ### Verify required columns are present
-        data_validation.check_required_columns(df, REQUIRED_COLS)
-
-        ### Check expected data types
-        #### Expected column groups by type
-        EXPECTED_TYPE_COLS = {
-            "string": ["LOG_ID", "MRN"],
-            "numeric": LAB_COLS + [col for col in DEMO_COLS if col != "sex"],
-            "binary": ["hypoxemia", "sex"]
+        ## Checking expected data types (expected column groups by type)
+        expected_type_cols = {
+            "string": id_cols,
+            "numeric": lab_cols + [col for col in demo_cols if col != sex_final],
+            "binary": outcome_cols + [sex_final]
         }
-        data_validation.check_expected_column_types(df, EXPECTED_TYPE_COLS)
+        data_validation.check_expected_column_types(df, expected_type_cols)
 
-        ### Screen for implausible values
-        data_validation.check_implausible_values(df, EXPECTED_TYPE_COLS)
+        ## Screening for implausible values
+        data_validation.check_implausible_values(df, expected_type_cols)
 
-        ### Missing value checks
-        ### Threshold for dropping columns based on missingness proportion
-        DROP_THRESHOLD = 0.5
-        df_validated = data_validation.check_missingness(df, drop_threshold = DROP_THRESHOLD)
+        ## Checking missing values
+        ## (threshold for dropping columns based on missingness proportion)
+        df = data_validation.check_missingness(df, drop_threshold = drop_threshold)
 
-        ## Export to csv
-        df_validated.to_csv(output_data_path, index=False)
-        print(f"Validated data saved to {output_data_path}.")
-        
-        # Cohort construction and train-test split
-        print("––––––––COHORT CONSTRUCTION AND TRAIN-TEST SPLIT––––––––")
+        print("Data validation complete.")
 
-        ## Define file paths
-        input_file = "validated_data.csv"
-        output_train_file = "hypoxemia_train.csv"
-        output_test_file = "hypoxemia_test.csv"
+        ## Saving final dataset
+        print("Saving final dataset...")
+        df.to_csv(OUTPUT_DATA_NAME, index=False)
+        print(f"Saved final dataset to {OUTPUT_DATA_NAME}")
 
-        input_path = OUTPUT_DATA_PATH + input_file
-        train_path = OUTPUT_DATA_PATH + output_train_file
-        test_path = OUTPUT_DATA_PATH + output_test_file
+        # Cohort split
+        print("––––––––COHORT SPLIT––––––––")
 
-        ## Read data
-        df = setup.load_data(input_path)
-
-        ## Cohort split
-        ### Case-control sampling
-        #### Outcome variable name, seed, sample size and test set proportion for random sampling
-        OUTCOME = "hypoxemia"
-        RANDOM_STATE = 42
-        NEG_SAMPLE_SIZE = 200
-        TEST_PROP = 0.25
-
-        sample = cohort_split.case_control_sample(df, OUTCOME, 1, NEG_SAMPLE_SIZE)
+        sample = cohort_split.case_control_sample(df,
+                                                  outcome,
+                                                  outcome_case_value,
+                                                  neg_sample_size)
         print(f"Sampled dataset shape: {sample.shape}")
 
-        ### Stratified train/test split
+        ## Performing a stratified train/test split
         train_df, test_df = train_test_split(
             sample,
-            test_size = TEST_PROP,
-            stratify = sample[OUTCOME],
-            random_state = RANDOM_STATE
+            test_size = test_prop,
+            stratify = sample[outcome],
+            random_state = random_state
         )
 
-        #### Reset index
+        ## Resetting index
         train_df = train_df.reset_index(drop=True)
         test_df = test_df.reset_index(drop=True)
 
-        #### Print outcome counts
-        train_counts = train_df[OUTCOME].value_counts()
-        test_counts = test_df[OUTCOME].value_counts()
+        ## Printing outcome counts
+        train_counts = train_df[outcome].value_counts()
+        test_counts = test_df[outcome].value_counts()
 
         split_count = pd.DataFrame({
             "train": train_counts,
             "test": test_counts
-        }).T.fillna(0).astype(int)
+        }).T.fillna(value_to_replace).astype(int)
         print("\nOutcome counts (train/test):")
         print(split_count)
 
-        ## Export to csv
-        train_df.to_csv(train_path, index=False)
-        test_df.to_csv(test_path, index=False)
+        print("Cohort split complete.")
 
-        print(f"\nSaved train data to {train_path}")
-        print(f"Saved test data to {test_path}")
+        ## Saving training and test sets
+        print("Saving training set...")
+        train_df.to_csv(OUTPUT_TRAIN_NAME, index=False)
+        print(f"Saved training set to {OUTPUT_TRAIN_NAME}")
 
-        ## Storing training and test set paths and datasets
-        training_path = config["data"]["training_set_path"]
-        training_set = setup.load_data(training_path)
+        print("Saving test set...")
+        test_df.to_csv(OUTPUT_TEST_NAME, index=False)
+        print(f"Saved test set to {OUTPUT_TEST_NAME}")
 
-        test_path = config["data"]["test_set_path"]
-        test_set = setup.load_data(test_path)
-        
         # Creating and saving plots
-        print("––––––––CREATING AND SAVING PLOTS––––––––")
-
-        ## Storing the output folder for the plots
-        output_folder = config["output"]["plots_folder"]
-
-        ## Creating the output folder for the plots
-        setup.create_output_folder(output_folder)
+        print("––––––––CREATING & SAVING PLOTS––––––––")
 
         ## Setting up features_dict and outcome_list for plotting
         features_dict = {
-            "age": {
-                "type": "continuous",
-                "name": "Age",
-                "units": "years",
-                "lowercase": True
+            co2_final: {
+                "type": co2_type,
+                "name": co2_name,
+                "units": co2_units,
+                "lowercase": co2_lowercase
             },
-            "bmi": {
-                "type": "continuous",
-                "name": "Body mass index",
-                "units": "kg/m^2",
-                "lowercase": True
+            glucose_final: {
+                "type": glucose_type,
+                "name": glucose_name,
+                "units": glucose_units,
+                "lowercase": glucose_lowercase
             },
-            "co2": {
-                "type": "continuous",
-                "name": "Carbon dioxide",
-                "units": "mmol/L",
-                "lowercase": True
+            hematocrit_final: {
+                "type": hematocrit_type,
+                "name": hematocrit_name,
+                "units": hematocrit_units,
+                "lowercase": hematocrit_lowercase
             },
-            "glucose": {
-                "type": "continuous",
-                "name": "Glucose",
-                "units": "mg/dL",
-                "lowercase": True
+            hemoglobin_final: {
+                "type": hemoglobin_type,
+                "name": hemoglobin_name,
+                "units": hemoglobin_units,
+                "lowercase": hemoglobin_lowercase
             },
-            "hematocrit": {
-                "type": "continuous",
-                "name": "Hematocrit",
-                "units": "%",
-                "lowercase": True
+            leukocytes_final: {
+                "type": leukocytes_type,
+                "name": leukocytes_name,
+                "units": leukocytes_units,
+                "lowercase": leukocytes_lowercase
             },
-            "hemoglobin": {
-                "type": "continuous",
-                "name": "Hemoglobin",
-                "units": "G/DL",
-                "lowercase": True
+            potassium_final: {
+                "type": potassium_type,
+                "name": potassium_name,
+                "units": potassium_units,
+                "lowercase": potassium_lowercase
             },
-            "leukocytes": {
-                "type": "continuous",
-                "name": "Leukocytes",
-                "units": "THOUS/MCL",
-                "lowercase": True
+            sodium_final: {
+                "type": sodium_type,
+                "name": sodium_name,
+                "units": sodium_units,
+                "lowercase": sodium_lowercase
             },
-            "potassium": {
-                "type": "continuous",
-                "name": "Potassium",
-                "units": "mmol/L",
-                "lowercase": True
+            age_final: {
+                "type": age_type,
+                "name": age_name,
+                "units": age_units,
+                "lowercase": age_lowercase
             },
-            "sodium": {
-                "type": "continuous",
-                "name": "Sodium",
-                "units": "mmol/L",
-                "lowercase": True
+            sex_final: {
+                "type": sex_type,
+                "name": sex_name,
+                "units": sex_units,
+                "lowercase": sex_lowercase,
+                "bar_colours": sex_bar_colours,
+                "xangle": sex_xangle,
+                "class_names": sex_class_names
             },
-            "sex": {
-                "type": "categorical",
-                "name": "Sex",
-                "units": "",
-                "lowercase": True,
-                "bar_colours": ["blue", "red"],
-                "xangle": 45,
-                "class_names": {0: "Male", 1: "Female"}
+            bmi: {
+                "type": bmi_type,
+                "name": bmi_name,
+                "units": bmi_units,
+                "lowercase": bmi_lowercase
             }
         }
 
-        outcome_list = ["hypoxemia", "Non-Hypoxemia", "Hypoxemia"]
+        outcome_list = [outcome, outcome_class_0_name, outcome_class_1_name]
 
         ## Creating and saving plots
-        create_plots.create_plots(data, features_dict, outcome_list, output_folder)
+        create_plots.create_plots(train_df,
+                                  features_dict,
+                                  outcome_list,
+                                  OUTPUT_PLOTS_PATH)
 
-        ## Printing a message
-        print("Exploratory data analysis complete.")
-        
+        print("Creating and saving plots complete.")
+
         # Log-transforming variables
         print("––––––––LOG-TRANSFORMING VARIABLES––––––––")
 
         ## Setting up df_file_path_list and var_list for log-transformation
-        df_file_path_list = [training_path, test_path]
-        var_list = ["glucose"]
-    
-        ## Log-transforming the desired variable(s) and saving the modified datasets
-        log_transform.log_transform(df_file_path_list, var_list)
+        df_file_path_list = [OUTPUT_TRAIN_NAME, OUTPUT_TEST_NAME]
+        var_list = [glucose_final, leukocytes_final]
 
-        ## Printing a message
+        ## Log-transforming the desired variables and
+        ## saving the modified training and test sets
+        df_dict = log_transform.log_transform(df_file_path_list, var_list)
+        train_df = df_dict[OUTPUT_TRAIN_NAME]
+        test_df = df_dict[OUTPUT_TEST_NAME]
+
         print("Log-transformation process complete.")
-        
+
         # Analysis
         print("––––––––CONDUCTING ANALYSIS––––––––")
 
-        ## Storing and creating the output folder for the model-related results
-        output_folder = config["output"]["model_folder"]
-        setup.create_output_folder(output_folder)
-
-        ## Printing a message about starting full model analysis
+        ## Full model analysis
         print("––––– Full Model –––––")
 
-        ## Fitting the full model on the training set
-        outcome_var = "hypoxemia"
-        predictor_var_list = ["age", "sex", "bmi", "co2", "glucose", "hematocrit",
-                              "hemoglobin", "leukocytes", "potassium", "sodium"]
+        ### Fitting the full model on the training set
+        predictor_var_list = [age_final,
+                              sex_final,
+                              bmi,
+                              co2_final,
+                              glucose_final,
+                              hematocrit_final,
+                              hemoglobin_final,
+                              leukocytes_final,
+                              potassium_final,
+                              sodium_final]
 
-        full_model = analysis.fit_model(training_set, outcome_var, predictor_var_list)
+        full_model = analysis.fit_model(train_df, outcome, predictor_var_list)
 
-        ## Storing the significant predictors at the 0.05 level of significance
-        alpha = 0.05
+        ### Storing the significant predictors
         significant_predictors = analysis.get_significant_predictors(full_model, alpha)
 
-        ## Printing a message to show the significant predictors if any exist
+        ### Printing a message to show the significant predictors if any exist
         if len(significant_predictors) > 0:
-            print(
-                f"The significant predictors from the full model "
-                f"are: {significant_predictors}")
+            print(f"The significant predictors from the full model "
+                  f"are: {significant_predictors}")
         else:
             print("No significant predictors found.")
 
-        ## Saving the results of the full model
-        output_file_name = "full_model_results"
-    
-        analysis.save_full_model(full_model, output_folder, output_file_name)
+        ### Saving the results of the full model
+        analysis.save_full_model(full_model,
+                                 OUTPUT_MODEL_PATH,
+                                 OUTPUT_FULL_MODEL_RESULTS_FILE)
 
-        ## Evaluating the full model on the test set and saving the test set
-        ## misclassification error rate for comparison
-        output_file_name = "full_model_misclassification_error_rate"
+        ### Evaluating the full model on the test set and saving the test set
+        ### misclassification error rate for comparison
+        analysis.evaluate_model(full_model,
+                                test_df,
+                                outcome,
+                                OUTPUT_MODEL_PATH,
+                                OUTPUT_FULL_MODEL_RATE_FILE,
+                                classification_threshold)
 
-        threshold = 0.5
-        analysis.evaluate_model(full_model, test_set, outcome_var,
-                                output_folder, output_file_name, threshold)
-
-        ## Printing a message about starting reduced model analysis
+        ## Reduced model analysis
         print("––––– Reduced Model –––––")
 
-        ## Fitting the reduced model on the training set using only the
-        ## identified significant predictors
-        reduced_model = analysis.fit_model(training_set, outcome_var, significant_predictors)
+        ### Fitting the reduced model on the training set using only the
+        ### identified significant predictors
+        reduced_model = analysis.fit_model(train_df, outcome, significant_predictors)
 
-        ## Evaluating the reduced model on the test set and saving the test set
-        ## misclassification error rate
-        output_file_name = "reduced_model_misclassification_error_rate"
+        ### Evaluating the reduced model on the test set and saving the test set
+        ### misclassification error rate
+        analysis.evaluate_model(reduced_model,
+                                test_df,
+                                outcome,
+                                OUTPUT_MODEL_PATH,
+                                OUTPUT_REDUCED_MODEL_RATE_FILE,
+                                classification_threshold)
 
-        analysis.evaluate_model(reduced_model, test_set, outcome_var,
-                                output_folder, output_file_name)
-
-        ## Printing a message
         print("Analysis complete.")
         
-        # Printing a message
         print("––––––––PIPELINE COMPLETE––––––––")
+        
     except ModuleNotFoundError as e:
         print(f"Module not found: {e}")
     except FileNotFoundError as e:
