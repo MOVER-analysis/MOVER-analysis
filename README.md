@@ -8,23 +8,23 @@ To run the pipeline, follow these steps:
 
 1. Install and initialize Miniconda3 if not already done.
 2. Install Git if not already done.
-3. Clone this repository. On macOS, this can be done in Terminal by navigating to a particular folder of your choosing and executing these two lines:
-
-- `git clone https://github.com/MOVER-analysis/MOVER-analysis.git`
-
-
-- `cd MOVER-analysis`
-
-4. Create and activate a virtual environment if not already done. On macOS, this can be done in Terminal by navigating to the `miniconda3` directory and executing these two lines:
+3. Create and activate a virtual environment if not already done. On macOS, this can be done in Terminal by navigating to the `miniconda3` directory and executing these two lines:
 
 - `conda create -y -n MOVER python=3.10`
 
 
 - `conda activate MOVER`
 
-5. Install the packages in `requirements.txt`. On macOS, this can be done in Terminal immediately after executing the lines in step 4 by executing this line:
+4. Install the packages in `requirements.txt`. On macOS, this can be done in Terminal immediately after executing the lines in step 3 by executing this line:
 
 - `pip install -r requirements.txt`
+
+5. Clone this repository. On macOS, this can be done in Terminal by navigating to a particular folder of your choosing and executing these two lines:
+
+- `git clone https://github.com/MOVER-analysis/MOVER-analysis.git`
+
+
+- `cd MOVER-analysis`
 
 6. Create a folder in the same directory as `main.py` named `raw`.
 7. Inside the `raw` folder, ensure the following three MOVER EPIC data tables from 2017-2022 are present:
